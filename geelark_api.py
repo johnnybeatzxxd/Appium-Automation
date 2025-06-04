@@ -117,22 +117,83 @@ def stop_phone(ids:list[str]):
         print(f"Http Error: {errh}")
         print(f"Response code: {response.status_code}")
 
-def get_adb_information(ids:list[str]):
+def get_adb_information(ids: list[str]) -> dict:
+    """
+    Get ADB connection information for specified cloud phones.
     
+    Args:
+        ids (list[str]): List of cloud phone IDs to get ADB information for
+        
+    Returns:
+        dict: Response containing ADB connection details for each phone
+        
+    Response format:
+    {
+        "items": [
+            {
+                "code": int,      # 0 for success, other codes indicate errors
+                "id": str,        # Cloud phone ID
+                "ip": str,        # Connection IP
+                "port": str,      # Connection port
+                "pwd": str        # Connection password
+            },
+            ...
+        ]
+    }
+    """
     api_url = "https://openapi.geelark.com/open/v1/adb/getData"
-    headers = generate_api_headers(app_id,api_key)
-    payload = {"ids":ids}
+    headers = generate_api_headers(app_id, api_key)
+    payload = {"ids": ids}
 
     try:
         response = requests.post(api_url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status() 
+        response.raise_for_status()
         
         response_data = response.json()
-        return response_data
-        
+        if response_data.get("code") == 0:
+            return response_data.get("data", {}).get("items", [])
+        else:
+            print(f"API Error: {response_data.get('msg')}")
+            return []
+            
     except requests.exceptions.HTTPError as errh:
         print(f"Http Error: {errh}")
         print(f"Response code: {response.status_code}")
+        return []
+    except Exception as e:
+        print(f"Error getting ADB information: {str(e)}")
+        return []
+
+def get_available_phones() -> list[dict]:
+    """
+    Get a list of available phones based on their remark field.
+    Phones are considered available if their remark doesn't contain 'inactive'.
+    
+    Returns:
+        list[dict]: List of available phones with their details
+    """
+    # Get all phones
+    phones = get_all_cloud_phones()
+    
+    if not phones:
+        return []
+    
+    # Filter and format available phones
+    available_phones = []
+    for phone in phones:
+        remark = phone.get("remark", "").lower()
+        if "inactive" not in remark:
+            equipment_info = phone.get("equipmentInfo", {})
+            phone_info = {
+                "id": phone.get("id"),
+                "name": phone.get("serialName", "Unknown"),
+                "status": "active",
+                "brand": equipment_info.get("deviceBrand", "Unknown"),
+                "model": equipment_info.get("deviceModel", "Unknown")
+            }
+            available_phones.append(phone_info)
+    
+    return available_phones
 
 if __name__ == '__main__':
     phones_list = get_all_cloud_phones(page=1, page_size=10)
@@ -141,20 +202,20 @@ if __name__ == '__main__':
 
     phone_ids = [ phone_id.get("id") for phone_id in phones_list ]
 
-    print("Stating the Phones ...")
-    response = start_phone(phone_ids)
-    print(response)
-
-    adb_infos = get_adb_information(phone_ids)
-
-    while adb_infos["data"]["items"][0]["code"] != 0:
-        adb_infos = get_adb_information(phone_ids)
-        print("nope")
-        time.sleep(2)
-
+    # print("Stating the Phones ...")
+    # response = start_phone(phone_ids)
+    # print(response)
+    #
+    # adb_infos = get_adb_information(phone_ids)
+    #
+    # while adb_infos["data"]["items"][0]["code"] != 0:
+    #     adb_infos = get_adb_information(phone_ids)
+    #     print("nope")
+    #     time.sleep(2)
+    #
     print("its ready")
 
-    print("adb creds",adb_infos)
+    #print("adb creds",adb_infos)
 
 
 

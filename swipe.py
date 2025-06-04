@@ -10,6 +10,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from helper import handle_adjust_filters_prompt
 from helper import adjust_age_filter_and_apply
+from rich import print as rprint
+
 def is_popup_present(driver):
     try:
         # Replace this with actual identifiers for the popup
@@ -17,6 +19,7 @@ def is_popup_present(driver):
         return True
     except NoSuchElementException:
         return False
+
 def handle_interested_confirmation_popup(driver, timeout=3):
     """
     Checks for the "Interested?" confirmation popup and clicks "YES".
@@ -49,11 +52,11 @@ def handle_interested_confirmation_popup(driver, timeout=3):
         
         # Add a small random delay before clicking to seem more natural
         action_delay = random.uniform(0.4, 1.2)
-        print(f"Popup 'Interested?' detected. Clicking YES in {action_delay:.2f} seconds...")
+        rprint(f"[yellow]Popup 'Interested?' detected. Clicking YES in {action_delay:.2f} seconds...[/yellow]")
         time.sleep(action_delay)
         
         yes_button.click()
-        print("Clicked 'YES' on the 'Interested?' popup.")
+        rprint("[green]Clicked 'YES' on the 'Interested?' popup.[/green]")
         
         # Add a small random delay after clicking to allow UI to process
         time.sleep(random.uniform(0.3, 0.8))
@@ -64,7 +67,7 @@ def handle_interested_confirmation_popup(driver, timeout=3):
         # The popup (or its YES button) was not found. This is normal if it doesn't appear.
         return False
     except Exception as e:
-        print(f"An error occurred while handling the 'Interested?' popup: {e}")
+        rprint(f"[red]An error occurred while handling the 'Interested?' popup: {e}[/red]")
         return False
 
 
@@ -175,25 +178,25 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
     while time.time() < end_time:
         # Random delay between profiles (2-3 seconds)
         if handle_interested_confirmation_popup(driver):
-            print("Handled 'Interested?' popup. Moving to next profile cycle.")
+            rprint("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
             time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
             continue # Restart loop for the next profile evaluation
 
 
         if handle_adjust_filters_prompt(driver): # Uses internal timeout
-            print("'Adjust filters' prompt appeared. Attempting to modify filters.")
+            rprint("[yellow]'Adjust filters' prompt appeared. Attempting to modify filters.[/yellow]")
             if adjust_age_filter_and_apply(driver): # Uses internal timeout
-                print("Age filter adjusted. Continuing swipe session.")
+                rprint("[green]Age filter adjusted. Continuing swipe session.[/green]")
                 time.sleep(random.uniform(1.0, 2.0)) # Pause for UI to settle
             else:
-                print("Failed to adjust age filter. Stopping swipe session.")
+                rprint("[red]Failed to adjust age filter. Stopping swipe session.[/red]")
                 return # Critical failure
             continue # Restart loop
 
         # 3. "Out of likes" or other critical blocking popups
         # IMPORTANT: Ensure is_popup_present uses SPECIFIC locators for the "out of likes" popup.
         if is_popup_present(driver): 
-            print("Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.")
+            rprint("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
             return # Stop swiping
 
         time.sleep(random.uniform(2, 3))
@@ -235,23 +238,23 @@ if __name__ == "__main__":
         # Wait for app to load
         time.sleep(5)
         
-        print("Testing vertical scroll...")
+        rprint("[yellow]Testing vertical scroll...[/yellow]")
         # Test vertical scroll
         vertical_scroll(driver, is_first_swipe=True)  # Test first swipe
         time.sleep(2)
         vertical_scroll(driver, is_first_swipe=False)  # Test normal swipe
         time.sleep(2)
         
-        print("Testing horizontal swipes...")
+        rprint("[yellow]Testing horizontal swipes...[/yellow]")
         # Test horizontal swipes
         horizontal_swipe(driver, swipe_right=True)  # Test right swipe
         time.sleep(2)
         horizontal_swipe(driver, swipe_right=False)  # Test left swipe
         
-        print("Tests completed successfully!")
+        rprint("[green]Tests completed successfully![/green]")
         
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
+        rprint(f"[red]An error occurred: {str(e)}[/red]")
     
     finally:
         # Clean up

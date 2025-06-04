@@ -8,6 +8,7 @@ from selenium.webdriver.common.actions.pointer_input import PointerInput
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from rich import print as rprint
 import time 
 import random
 
@@ -38,7 +39,7 @@ def handle_adjust_filters_prompt(driver, timeout=3):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(identifier_text_locator)
         )
-        print("Detected 'Adjust your filters' prompt (Out of nearby profiles).")
+        rprint("[green]Detected 'Adjust your filters' prompt (Out of nearby profiles).[/green]")
 
         # 2. If identifying text is found, find and click the "Adjust your filters" button.
         #    It's better to click the clickable container View.
@@ -46,7 +47,7 @@ def handle_adjust_filters_prompt(driver, timeout=3):
             EC.element_to_be_clickable(adjust_button_clickable_container_locator)
         )
         adjust_button.click()
-        print("Clicked 'Adjust your filters' button.")
+        rprint("[green]Clicked 'Adjust your filters' button.[/green]")
         
         # Optional: Add a small delay to allow the UI to transition to the filter screen
         time.sleep(2) 
@@ -58,10 +59,10 @@ def handle_adjust_filters_prompt(driver, timeout=3):
         # print("Debug: 'Adjust filters' prompt not found.") # Usually not needed if it's one of many checks
         return False
     except NoSuchElementException: # Should be caught by TimeoutException with WebDriverWait
-        print("Error: Element not found while trying to handle 'Adjust filters' prompt (NoSuchElementException).")
+        rprint("[red]Error: Element not found while trying to handle 'Adjust filters' prompt (NoSuchElementException).[/red]")
         return False
     except Exception as e:
-        print(f"An error occurred while handling 'Adjust your filters' prompt: {e}")
+        rprint(f"[red]An error occurred while handling 'Adjust your filters' prompt: {e}[/red]")
         return False
 
 def adjust_age_filter_and_apply(driver, timeout=15):
@@ -78,7 +79,7 @@ def adjust_age_filter_and_apply(driver, timeout=15):
     Returns:
         bool: True if the age filter was adjusted and 'Apply' was clicked, False otherwise.
     """
-    print("Attempting to adjust age filter to a high random value and apply...")
+    rprint("[yellow]Attempting to adjust age filter to a high random value and apply...[/yellow]")
 
     higher_age_thumb_locator = (AppiumBy.XPATH, '//com.badoo.mobile.component.rangebar.RangeBarItem[@content-desc="Higher age"]')
     slider_track_locator = (AppiumBy.ID, "com.bumble.app:id/range_bar_item")
@@ -90,14 +91,14 @@ def adjust_age_filter_and_apply(driver, timeout=15):
     )
 
     try:
-        print("Locating age slider elements...")
+        rprint("[yellow]Locating age slider elements...[/yellow]")
         higher_age_thumb = WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(higher_age_thumb_locator)
         )
         slider_track = WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(slider_track_locator)
         )
-        print("Age slider elements located.")
+        rprint("[green]Age slider elements located.[/green]")
 
         thumb_location = higher_age_thumb.location
         thumb_size = higher_age_thumb.size
@@ -131,11 +132,10 @@ def adjust_age_filter_and_apply(driver, timeout=15):
         # force a slightly different high position.
         min_meaningful_change = 15 # pixels; minimum change to ensure UI update
         if abs(target_x - start_x) < min_meaningful_change:
-            print(f"DEBUG: Calculated target_x ({target_x}) too close to start_x ({start_x}). Adjusting.")
-            # If start_x is already near the max, move it slightly more left than the initial random target
+            rprint(f"[yellow]DEBUG: Calculated target_x ({target_x}) too close to start_x ({start_x}). Adjusting.[/yellow]")
             if start_x >= absolute_max_thumb_center_x - (random_offset_from_max + min_meaningful_change):
-                 target_x = start_x - min_meaningful_change # Move a bit left from current high position
-            else: # Otherwise, move a bit right from current position
+                 target_x = start_x - min_meaningful_change
+            else:
                  target_x = start_x + min_meaningful_change
 
         # 3. Final boundary checks:
@@ -152,11 +152,11 @@ def adjust_age_filter_and_apply(driver, timeout=15):
         target_y = start_y
         # --- END OF REVISED LOGIC FOR TARGET X ---
 
-        print(f"DEBUG: Randomized slider movement: start_x={start_x}, target_x={target_x}, absolute_max_center_x={absolute_max_thumb_center_x}")
+        rprint(f"[yellow]DEBUG: Randomized slider movement: start_x={start_x}, target_x={target_x}, absolute_max_center_x={absolute_max_thumb_center_x}[/yellow]")
 
         # Ensure there is an actual move to perform
         if target_x == start_x:
-            print("DEBUG: Target_x is the same as start_x. No drag will be performed. This might mean the slider is stuck or at a boundary.")
+            rprint("[yellow]DEBUG: Target_x is the same as start_x. No drag will be performed. This might mean the slider is stuck or at a boundary.[/yellow]")
             # If this happens, the Apply button might not appear.
             # You might need to handle this case, perhaps by trying a different random offset.
             # For now, we proceed, but the Apply button might fail.
@@ -168,29 +168,29 @@ def adjust_age_filter_and_apply(driver, timeout=15):
                 'endY': target_y,
                 'speed': 2500
             })
-            print("Higher age thumb dragged.")
+            rprint("[green]Higher age thumb dragged.[/green]")
 
         time.sleep(2) # UI update
-        print("Locating and clicking 'Apply' button...")
+        rprint("[yellow]Locating and clicking 'Apply' button...[/yellow]")
         apply_button = WebDriverWait(driver, timeout).until(
             EC.element_to_be_clickable(apply_button_locator)
         )
         apply_button.click()
-        print("Clicked 'Apply' button.")
+        rprint("[green]Clicked 'Apply' button.[/green]")
         time.sleep(3) # Filters apply
 
         return True
 
     except TimeoutException:
-        print(f"Timeout: Could not find an element for age filter adjustment or the Apply button within {timeout}s.")
+        rprint(f"[red]Timeout: Could not find an element for age filter adjustment or the Apply button within {timeout}s.[/red]")
         # driver.save_screenshot("debug_timeout_age_filter.png")
         return False
     except NoSuchElementException:
-        print("Error: Element not found during age filter adjustment (NoSuchElementException).")
+        rprint("[red]Error: Element not found during age filter adjustment (NoSuchElementException).[/red]")
         # driver.save_screenshot("debug_noelement_age_filter.png")
         return False
     except Exception as e:
-        print(f"An unexpected error occurred while adjusting age filter: {e}")
+        rprint(f"[red]An unexpected error occurred while adjusting age filter: {e}[/red]")
         # driver.save_screenshot("debug_exception_age_filter.png")
         return False
 
@@ -204,7 +204,7 @@ def is_nav_bar_present(driver, timeout=3):
     except TimeoutException:
         return False
     except Exception as e:
-        print(f"Debug (is_nav_bar_present): Unexpected error checking nav bar: {e}")
+        rprint(f"[yellow]Debug (is_nav_bar_present): Unexpected error checking nav bar: {e}[/yellow]")
         return False
 
 
@@ -215,7 +215,7 @@ def get_current_screen_by_tab(driver, timeout=5):
     Returns "NAV_BAR_NOT_FOUND" if the navigation bar itself is not present.
     """
     if not is_nav_bar_present(driver, timeout=max(1, timeout // 2)): # Use a portion of the main timeout
-        print(f"Debug (get_current_screen_by_tab): Main navigation bar ('{NAV_BAR_ID}') not found or not displayed.")
+        rprint(f"[yellow]Debug (get_current_screen_by_tab): Main navigation bar ('{NAV_BAR_ID}') not found or not displayed.[/yellow]")
         return "NAV_BAR_NOT_FOUND" # Specific return value for this case
     
     try:
@@ -236,13 +236,13 @@ def get_current_screen_by_tab(driver, timeout=5):
             
     except TimeoutException:
         # This timeout now specifically means the *selected tab* wasn't found, as nav_bar presence was checked.
-        print(f"Debug (get_current_screen_by_tab): Nav bar present, but selected tab not found within {timeout}s.")
+        rprint(f"[yellow]Debug (get_current_screen_by_tab): Nav bar present, but selected tab not found within {timeout}s.[/yellow]")
         return "UNKNOWN_SCREEN_SELECTED_TAB_NOT_FOUND_IN_NAV_BAR"
     except NoSuchElementException: # Should be caught by TimeoutException
-        print(f"Debug (get_current_screen_by_tab): NoSuchElementException for selected tab.")
+        rprint(f"[yellow]Debug (get_current_screen_by_tab): NoSuchElementException for selected tab.[/yellow]")
         return "UNKNOWN_SCREEN_SELECTED_TAB_NOT_FOUND_IN_NAV_BAR_NSE"
     except Exception as e:
-        print(f"An unexpected error occurred in get_current_screen_by_tab (after nav bar check): {e}")
+        rprint(f"[red]An unexpected error occurred in get_current_screen_by_tab (after nav bar check): {e}[/red]")
         return f"UNKNOWN_SCREEN_ERROR_({type(e).__name__})"
 # --- Improved open_page function ---
 def open_page(driver, page_name_from_ui, navigation_timeout=10, verification_timeout=5):
@@ -264,15 +264,15 @@ def open_page(driver, page_name_from_ui, navigation_timeout=10, verification_tim
     target_screen_id = page_name_from_ui.upper().replace(" ", "_") + "_SCREEN"
     nav_bar_id = "com.bumble.app:id/mainApp_navigationTabBar"
 
-    print(f"Attempting to navigate to or verify '{page_name_from_ui}' (Target ID: {target_screen_id}).")
+    rprint(f"[yellow]Attempting to navigate to or verify '{page_name_from_ui}' (Target ID: {target_screen_id}).[/yellow]")
 
     # 1. Check current screen using a short timeout
     #    (get_current_screen_by_tab already has its own internal timeout)
     current_screen = get_current_screen_by_tab(driver, timeout=3) 
-    print(f"Current screen detected: {current_screen}")
+    rprint(f"[yellow]Current screen detected: {current_screen}[/yellow]")
 
     if current_screen == target_screen_id:
-        print(f"Already on the '{page_name_from_ui}' page.")
+        rprint(f"[green]Already on the '{page_name_from_ui}' page.[/green]")
         return True
     
     # 2. If not on the target page, or if nav bar wasn't found (could be a popup)
@@ -281,7 +281,7 @@ def open_page(driver, page_name_from_ui, navigation_timeout=10, verification_tim
     tab_to_click_xpath = f"//*[@resource-id='{nav_bar_id}']//android.view.ViewGroup[@content-desc='{page_name_from_ui}']"
 
     try:
-        print(f"Not on '{page_name_from_ui}'. Attempting to click tab with content-desc: '{page_name_from_ui}'.")
+        rprint(f"[yellow]Not on '{page_name_from_ui}'. Attempting to click tab with content-desc: '{page_name_from_ui}'.[/yellow]")
         
         # Ensure the navigation bar itself is present first
         WebDriverWait(driver, navigation_timeout).until(
@@ -293,7 +293,7 @@ def open_page(driver, page_name_from_ui, navigation_timeout=10, verification_tim
             EC.element_to_be_clickable((AppiumBy.XPATH, tab_to_click_xpath))
         )
         tab_element.click()
-        print(f"Clicked on the '{page_name_from_ui}' tab.")
+        rprint(f"[green]Clicked on the '{page_name_from_ui}' tab.[/green]")
 
         # 3. Verify navigation
         #    Wait until get_current_screen_by_tab confirms we are on the target screen.
@@ -303,19 +303,19 @@ def open_page(driver, page_name_from_ui, navigation_timeout=10, verification_tim
             message=f"Failed to verify navigation to '{target_screen_id}' after clicking tab."
         )
         
-        print(f"Successfully navigated to and verified '{page_name_from_ui}' page.")
+        rprint(f"[green]Successfully navigated to and verified '{page_name_from_ui}' page.[/green]")
         return True
 
     except TimeoutException as te:
-        print(f"Error (open_page): TimeoutException while trying to navigate to or verify '{page_name_from_ui}'. {te.msg}")
+        rprint(f"[red]Error (open_page): TimeoutException while trying to navigate to or verify '{page_name_from_ui}'. {te.msg}[/red]")
         # For debugging, it's useful to see what screen it *thinks* it's on if verification failed
         final_check = get_current_screen_by_tab(driver, timeout=1)
-        print(f"Final screen check after TimeoutException: {final_check}")
+        rprint(f"[yellow]Final screen check after TimeoutException: {final_check}[/yellow]")
         # Consider printing page source if debugging is hard:
         # if not final_check.startswith("UNKNOWN_SCREEN_NAV_BAR_OR_TAB_NOT_FOUND"):
         #     print(driver.page_source)
         return False
     except Exception as e:
-        print(f"Error (open_page): An unexpected error occurred while trying to open '{page_name_from_ui}'. Exception: {e}")
+        rprint(f"[red]Error (open_page): An unexpected error occurred while trying to open '{page_name_from_ui}'. Exception: {e}[/red]")
         # print(driver.page_source) # For debugging
         return False
