@@ -10,6 +10,7 @@ from selenium.webdriver.common.actions.pointer_input import PointerInput
 
 from helper import open_page
 from swipe import realistic_swipe
+import chat
 
 options = UiAutomator2Options()
 options.platform_name = "Android"
@@ -33,8 +34,14 @@ try:
 
     # if open_page(driver, "People"):
     #     realistic_swipe(driver,1)
-    if open_page(driver,"Chats"):
-        print("we are in chats section")
+    print("\n--- Attempting Chat Processing Phase ---")
+    if open_page(driver, "Chats"): # Ensure "Chats" is the exact content-desc
+        print("Successfully navigated to Chats page.")
+        # Now call the function from your chat.py module
+        # If you imported the whole module: chat.process_new_matches(...)
+        # If you imported specific function: process_new_matches(...)
+        chat.process_new_matches(driver, max_matches_to_process=3) # Process up to 3 new matches
+        print("Finished chat processing phase.")
 
 except Exception as e:
     print(f"Error: {e}")
