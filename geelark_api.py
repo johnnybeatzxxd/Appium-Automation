@@ -4,6 +4,7 @@ import hashlib
 import requests
 import json
 import os
+import webbrowser
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -85,7 +86,12 @@ def get_all_cloud_phones(
         print(f"Response code: {response.status_code}")
 
 def start_phone(ids:list[str]):
-
+    """
+    Start the specified cloud phones and open their URLs in the browser.
+    
+    Args:
+        ids (list[str]): List of cloud phone IDs to start
+    """
     api_url = "https://openapi.geelark.com/open/v1/phone/start"
     headers = generate_api_headers(app_id, api_key)
     payload = {"ids":ids}
@@ -95,11 +101,21 @@ def start_phone(ids:list[str]):
         response.raise_for_status() 
         
         response_data = response.json()
+        if response_data.get("code") == 0:
+            # Open each phone's URL in the browser
+            success_details = response_data.get("data", {}).get("successDetails", [])
+            for phone in success_details:
+                url = phone.get("url")
+                if url:
+                    print(f"Opening phone {phone.get('id')} in browser...")
+                    webbrowser.open(url)
+                    time.sleep(1)  # Small delay between opening multiple URLs
         return response_data
         
     except requests.exceptions.HTTPError as errh:
         print(f"Http Error: {errh}")
         print(f"Response code: {response.status_code}")
+        return None
 
 def stop_phone(ids:list[str]):
     api_url = "https://openapi.geelark.com/open/v1/phone/stop"
@@ -195,6 +211,60 @@ def get_available_phones() -> list[dict]:
     
     return available_phones
 
+def get_phone_status(ids: list[str]) -> dict:
+    """
+    Query the status of cloud phones by their IDs.
+    
+    Args:
+        ids (list[str]): List of cloud phone IDs to query status for (max 100 elements)
+        
+    Returns:
+        dict: Response containing status details for each phone
+        
+    Response format:
+    {
+        "totalAmount": int,      # Total number of requested IDs
+        "successAmount": int,    # Number of successful responses
+        "failAmount": int,       # Number of failed responses
+        "successDetails": [      # List of successful phone statuses
+            {
+                "id": str,           # Phone ID
+                "serialName": str,   # Phone name
+                "status": int        # Status code (0=Started, 1=Starting, 2=Shut down, 3=Expired)
+            }
+        ],
+        "failDetails": [         # List of failed queries
+            {
+                "code": int,     # Error code
+                "id": str,       # Phone ID
+                "msg": str       # Error message
+            }
+        ]
+    }
+    """
+    api_url = "https://openapi.geelark.com/open/v1/phone/status"
+    headers = generate_api_headers(app_id, api_key)
+    payload = {"ids": ids}
+
+    try:
+        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        
+        response_data = response.json()
+        if response_data.get("code") == 0:
+            return response_data.get("data", {})
+        else:
+            print(f"API Error: {response_data.get('msg')}")
+            return {}
+            
+    except requests.exceptions.HTTPError as errh:
+        print(f"Http Error: {errh}")
+        print(f"Response code: {response.status_code}")
+        return {}
+    except Exception as e:
+        print(f"Error getting phone status: {str(e)}")
+        return {}
+
 if __name__ == '__main__':
     phones_list = get_all_cloud_phones(page=1, page_size=10)
     print("API Response:")
@@ -202,10 +272,10 @@ if __name__ == '__main__':
 
     phone_ids = [ phone_id.get("id") for phone_id in phones_list ]
 
-    # print("Stating the Phones ...")
-    # response = start_phone(phone_ids)
-    # print(response)
-    #
+    print("Stating the Phones ...")
+    response = start_phone(phone_ids)
+    print(response)
+
     # adb_infos = get_adb_information(phone_ids)
     #
     # while adb_infos["data"]["items"][0]["code"] != 0:
