@@ -141,11 +141,18 @@ if __name__ == '__main__':
 
     phone_ids = [ phone_id.get("id") for phone_id in phones_list ]
 
-    # print("Stating the Phones ...")
-    # response = start_phone(phone_ids)
-    # print(response)
+    print("Stating the Phones ...")
+    response = start_phone(phone_ids)
+    print(response)
 
     adb_infos = get_adb_information(phone_ids)
+
+    while adb_infos["data"]["items"][0]["code"] != 0:
+        adb_infos = get_adb_information(phone_ids)
+        print("nope")
+        time.sleep(2)
+
+    print("its ready")
 
     print("adb creds",adb_infos)
 
