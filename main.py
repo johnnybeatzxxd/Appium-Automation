@@ -26,23 +26,34 @@ APPIUM_SERVER_URL = "http://127.0.0.1:4723"
 driver = None
 
 try:
-    driver = webdriver.Remote(APPIUM_SERVER_URL, options=options)
+    from connection import make_phone_ready
 
-    time.sleep(5)
-    print("THE APP IS READY")
+    # Replace with your actual phone ID
+    phone_id = "your_phone_id_here"
+    connection_info = make_phone_ready(phone_id)
 
+    if connection_info:
+        # Use the connection information
+        ip = connection_info["ip"]
+        port = connection_info["port"]
+        password = connection_info["pwd"]
 
-    # if open_page(driver, "People"):
-    #     realistic_swipe(driver,1)
-    print("\n--- Attempting Chat Processing Phase ---")
-    if open_page(driver, "Chats"): # Ensure "Chats" is the exact content-desc
-        print("Successfully navigated to Chats page.")
-        # Now call the function from your chat.py module
-        # If you imported the whole module: chat.process_new_matches(...)
-        # If you imported specific function: process_new_matches(...)
-        chat.process_new_matches(driver, max_matches_to_process=3) # Process up to 3 new matches
-        print("Finished chat processing phase.")
-
+    # driver = webdriver.Remote(APPIUM_SERVER_URL, options=options)
+    # time.sleep(5)
+    # print("THE APP IS READY")
+    #
+    #
+    # # if open_page(driver, "People"):
+    # #     realistic_swipe(driver,1)
+    # print("\n--- Attempting Chat Processing Phase ---")
+    # if open_page(driver, "Chats"): # Ensure "Chats" is the exact content-desc
+    #     print("Successfully navigated to Chats page.")
+    #     # Now call the function from your chat.py module
+    #     # If you imported the whole module: chat.process_new_matches(...)
+    #     # If you imported specific function: process_new_matches(...)
+    #     chat.process_new_matches(driver, max_matches_to_process=3) # Process up to 3 new matches
+    #     print("Finished chat processing phase.")
+    #
 except Exception as e:
     print(f"Error: {e}")
 finally:
