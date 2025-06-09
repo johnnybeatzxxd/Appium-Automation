@@ -14,6 +14,19 @@ import random
 
 NAV_BAR_ID = "com.bumble.app:id/mainApp_navigationTabBar" # Define as a constant
 
+def get_screen_dimensions(driver):
+    """Gets the current screen width and height."""
+    try:
+        window_size = driver.get_window_size()
+        width = window_size.get('width')
+        height = window_size.get('height')
+        if width is None or height is None:
+            print("WARNING: Could not get window dimensions, driver.get_window_size() returned None for width/height.")
+            return None, None # Or raise an error, or return defaults
+        return int(width), int(height)
+    except Exception as e:
+        print(f"Error getting screen dimensions: {e}")
+        return None, None
 def handle_adjust_filters_prompt(driver, timeout=3):
     """
     Checks for the "Adjust your filters" prompt (out of nearby profiles) and clicks the button.

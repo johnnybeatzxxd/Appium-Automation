@@ -10,7 +10,354 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from helper import handle_adjust_filters_prompt
 from helper import adjust_age_filter_and_apply
+from helper import get_screen_dimensions
 from rich import print as rprint
+
+# Using a distinctive text on the ad screen for initial detection
+PREMIUM_AD_IDENTIFIER_TEXT_LOCATOR = (AppiumBy.XPATH, "//android.widget.TextView[@text='Find who you’re looking for, faster']")
+
+# The "Maybe later" button is a clickable View containing a TextView with text "Maybe later"
+PREMIUM_AD_MAYBE_LATER_BUTTON_LOCATOR = (
+    AppiumBy.XPATH, 
+    "//android.view.View[@clickable='true' and .//android.widget.TextView[@text='Maybe later']]"
+)
+# --- Locators for the SuperSwipe Info Popup ---
+# Using a distinctive text on the popup for initial detection
+SUPERSWIPE_POPUP_IDENTIFIER_TEXT_LOCATOR = (
+    AppiumBy.XPATH, 
+    "//android.widget.TextView[@text='Supercharge your chance to match']"
+)
+
+# The "Got it" button is a clickable View containing a TextView with text "Got it"
+SUPERSWIPE_POPUP_GOT_IT_BUTTON_LOCATOR = (
+    AppiumBy.XPATH, 
+    "//android.view.View[@clickable='true' and .//android.widget.TextView[@text='Got it']]"
+)
+
+# Alternative: Close button at the top right of the popup content area
+SUPERSWIPE_POPUP_CLOSE_BUTTON_LOCATOR = (
+    AppiumBy.XPATH,
+    "//android.widget.ImageView[@content-desc='Close' and @clickable='true']"
+)
+
+FIRST_MOVE_SCREEN_IDENTIFIER_TEXT_LOCATOR = (
+    AppiumBy.XPATH, 
+    "//android.widget.TextView[contains(@text, 'It’s time to') and contains(@text, 'make your move')]"
+) 
+FIRST_MOVE_SCREEN_CLOSE_BUTTON_LOCATOR = (
+    AppiumBy.ID, "com.bumble.app:id/navbar_button_navigation"
+)
+
+ITS_A_MATCH_SCREEN_IDENTIFIER_TEXT = (AppiumBy.XPATH, "//*[@resource-id='com.bumble.app:id/match_explanationTitle' and @text='What a match!']")
+# Or by container ID if more stable:
+# ITS_A_MATCH_SCREEN_CONTAINER_ID = (AppiumBy.ID, "com.bumble.app:id/mutualAttraction_topContainer")
+
+# "Opening Moves" info box elements (if present on the "It's a Match!" screen)
+OPENING_MOVES_INFO_BOX_TEXT_LOCATOR = (AppiumBy.XPATH, "//android.widget.TextView[@text='Kick things off with Opening Moves']")
+OPENING_MOVES_INFO_BOX_GOT_IT_BUTTON_LOCATOR = (
+    AppiumBy.XPATH,
+    "//androidx.compose.ui.platform.ComposeView[.//android.widget.TextView[@text='Kick things off with Opening Moves']]//android.view.View[@clickable='true' and .//android.widget.TextView[@text='Got it']]"
+) # This XPath is more specific to the "Got it" within the "Opening Moves" box
+
+# Main "Close" button for the entire "It's a Match!" screen (top left)
+ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/match_close")
+
+
+def handle_they_saw_you_premium_popup(driver, timeout=1):
+    """
+    Checks for the "They saw you, they’re into you" Premium upsell popup
+    and clicks "Maybe later".
+
+    Args:
+        driver: The Appium WebDriver instance.
+        timeout (int): Maximum time to wait for the popup elements.
+
+    Returns:
+        bool: True if the ad was detected and handled, False otherwise.
+    """
+    try:
+        # 1. Check for the presence of a distinctive element of the ad.
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located(THEY_SAW_YOU_POPUP_IDENTIFIER_TEXT_LOCATOR)
+        )
+        rprint("[yellow]'They saw you, they’re into you' Premium popup detected.[/yellow]")
+
+        # 2. If the ad is detected, try to click the "Maybe later" button.
+        try:
+            maybe_later_button = WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable(THEY_SAW_YOU_POPUP_MAYBE_LATER_BUTTON_LOCATOR)
+            )
+            
+            action_delay = random.uniform(0.5, 1.3)
+            rprint(f"[yellow]Clicking 'Maybe later' in {action_delay:.2f} seconds...[/yellow]")
+            time.sleep(action_delay)
+            
+            maybe_later_button.click()
+            rprint("[green]Clicked 'Maybe later' on 'They saw you' Premium popup.[/green]")
+
+        except TimeoutException:
+            rprint("[yellow]'Maybe later' button not found or clickable. Trying 'Close' button as fallback...[/yellow]")
+            # Fallback to the "Close" button (top left)
+            # Ensure THEY_SAW_YOU_POPUP_CLOSE_BUTTON_LOCATOR is accurate for this specific popup's close button.
+            # The XML structure for the close button is: clickable View -> (View content-desc="Close", Button)
+            # We target the clickable View that contains the "Close" element.
+            # Let's refine the close button XPath for this specific structure:
+            actual_close_button_locator = (AppiumBy.XPATH, "//android.view.View[@clickable='true' and .//android.view.View[@content-desc='Close']]")
+            # This looks for a clickable View that has a descendant View with content-desc="Close".
+
+            close_button = WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable(actual_close_button_locator)
+            )
+            action_delay = random.uniform(0.4, 1.1)
+            rprint(f"[yellow]Clicking top 'Close' button in {action_delay:.2f} seconds...[/yellow]")
+            time.sleep(action_delay)
+            close_button.click()
+            rprint("[green]Clicked top 'Close' button on 'They saw you' Premium popup.[/green]")
+        
+        # Add a pause after clicking to allow the UI to dismiss the popup and settle
+        time.sleep(random.uniform(1.0, 2.0))
+        
+        return True # Ad was handled
+
+    except TimeoutException:
+        # The ad was not found within the timeout period. This is normal.
+        # rprint("[grey50]Debug: 'They saw you' Premium popup not found.[/grey50]")
+        return False
+    except Exception as e:
+        rprint(f"[red]An error occurred while handling the 'They saw you' Premium popup: {e}[/red]")
+        # try:
+        #     rprint(f"[grey37]Page source on 'They saw you' error:\n{driver.page_source[:2000]}[/grey37]")
+        # except: pass
+        return False
+
+
+
+def handle_its_a_match_and_opening_moves_popup(driver, timeout=1):
+    """
+    Checks for the "It's a Match!" screen. If found, it first tries to click "Got it"
+    on any "Opening Moves" info box within it, and then clicks the main "Close" button
+    to dismiss the entire match screen.
+
+    Args:
+        driver: The Appium WebDriver instance.
+        timeout (int): Maximum time to wait for elements.
+
+    Returns:
+        bool: True if the "It's a Match!" screen was detected and handled, False otherwise.
+    """
+    try:
+        # 1. Check for the main "It's a Match!" screen.
+        #    Using a short initial timeout for detection.
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located(ITS_A_MATCH_SCREEN_IDENTIFIER_TEXT)
+            # If using container ID: EC.presence_of_element_located(ITS_A_MATCH_SCREEN_CONTAINER_ID)
+        )
+        rprint("[yellow]'It's a Match!' screen detected.[/yellow]")
+        
+        # 2. (Optional) Try to click "Got it" for the "Opening Moves" info box if it's present.
+        #    This box is part of the "It's a Match!" screen.
+        try:
+            # First ensure the specific "Opening Moves" text is there
+            WebDriverWait(driver, 2).until( # Short timeout for this optional part
+                EC.presence_of_element_located(OPENING_MOVES_INFO_BOX_TEXT_LOCATOR)
+            )
+            opening_moves_got_it_button = WebDriverWait(driver, 2).until(
+                EC.element_to_be_clickable(OPENING_MOVES_INFO_BOX_GOT_IT_BUTTON_LOCATOR)
+            )
+            action_delay = random.uniform(0.3, 0.8)
+            rprint(f"[yellow]Found 'Opening Moves' info box. Clicking its 'Got it' button in {action_delay:.2f}s...[/yellow]")
+            time.sleep(action_delay)
+            opening_moves_got_it_button.click()
+            rprint("[green]Clicked 'Got it' on 'Opening Moves' info box.[/green]")
+            time.sleep(0.5) # Brief pause after this click
+        except TimeoutException:
+            rprint("[grey50]Debug: 'Opening Moves' info box (or its 'Got it' button) not found on 'It's a Match!' screen. Skipping.[/grey50]")
+        except Exception as e_om:
+            rprint(f"[orange_red1]Minor error trying to handle 'Opening Moves' info box: {e_om}. Proceeding to close main match screen.[/orange_red1]")
+
+        # 3. Click the main "Close" button (top left) to dismiss the entire "It's a Match!" screen.
+        #    This should always be attempted if the "It's a Match!" screen was detected.
+        main_close_button = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable(ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR)
+        )
+        
+        action_delay_main_close = random.uniform(0.5, 1.2)
+        rprint(f"[yellow]Clicking main 'Close' button for 'It's a Match!' screen in {action_delay_main_close:.2f}s...[/yellow]")
+        time.sleep(action_delay_main_close)
+        
+        main_close_button.click()
+        rprint("[green]Clicked main 'Close' button. 'It's a Match!' screen should be dismissed.[/green]")
+        
+        # Pause after closing to allow UI to return to swiping
+        time.sleep(random.uniform(1.2, 2.2))
+        
+        return True # "It's a Match!" screen was handled
+
+    except TimeoutException:
+        # The "It's a Match!" screen was not found. This is normal if no match occurred.
+        # rprint("[grey50]Debug: 'It's a Match!' screen not found.[/grey50]")
+        return False
+    except Exception as e:
+        rprint(f"[red]An error occurred while handling the 'It's a Match!' screen: {e}[/red]")
+        # try:
+        #     rprint(f"[grey37]Page source on 'It's a Match!' error:\n{driver.page_source[:2000]}[/grey37]")
+        # except: pass
+        return False
+def handle_first_move_info_screen(driver, timeout=1):
+
+    """
+    Checks for the "It's time to make your move" info screen and clicks the "Close" button.
+
+    Args:
+        driver: The Appium WebDriver instance.
+        timeout (int): Maximum time to wait for the screen elements.
+
+    Returns:
+        bool: True if the screen was detected and "Close" was clicked, False otherwise.
+    """
+    try:
+        # 1. Check for the presence of the identifying text of the screen.
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located(FIRST_MOVE_SCREEN_IDENTIFIER_TEXT_LOCATOR)
+        )
+        rprint("[yellow]'First Move' info screen detected ('It’s time to make your move').[/yellow]")
+
+        # 2. If the screen is detected, find and click the "Close" button.
+        close_button = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable(FIRST_MOVE_SCREEN_CLOSE_BUTTON_LOCATOR)
+        )
+        
+        action_delay = random.uniform(0.4, 1.1)
+        rprint(f"[yellow]Clicking 'Close' button on 'First Move' info screen in {action_delay:.2f} seconds...[/yellow]")
+        time.sleep(action_delay)
+        
+        close_button.click()
+        rprint("[green]Clicked 'Close' on the 'First Move' info screen.[/green]")
+        
+        # Add a pause after clicking to allow the UI to dismiss and settle
+        time.sleep(random.uniform(1.0, 1.8))
+        
+        return True # Screen was handled
+
+    except TimeoutException:
+        # The screen was not found within the timeout period. This is normal.
+        # rprint("[grey50]Debug: 'First Move' info screen not found.[/grey50]")
+        return False
+    except Exception as e:
+        rprint(f"[red]An error occurred while handling the 'First Move' info screen: {e}[/red]")
+        # try:
+        #     rprint(f"[grey37]Page source on 'First Move' info screen error:\n{driver.page_source[:2000]}[/grey37]")
+        # except: pass
+        return False
+
+
+def handle_superswipe_info_popup(driver, timeout=1):
+    """
+    Checks for the "SuperSwipe info/upsell" popup and clicks "Got it".
+
+    Args:
+        driver: The Appium WebDriver instance.
+        timeout (int): Maximum time to wait for the popup elements.
+
+    Returns:
+        bool: True if the popup was detected and handled, False otherwise.
+    """
+    try:
+        # 1. Check for the presence of the identifying text of the popup.
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located(SUPERSWIPE_POPUP_IDENTIFIER_TEXT_LOCATOR)
+        )
+        rprint("[yellow]SuperSwipe info/upsell popup detected ('Supercharge your chance to match').[/yellow]")
+
+        # 2. If the popup is detected, find and click the "Got it" button.
+        #    We could also try the "Close" button if "Got it" fails, but "Got it" is usually the primary dismissal.
+        try:
+            got_it_button = WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable(SUPERSWIPE_POPUP_GOT_IT_BUTTON_LOCATOR)
+            )
+            
+            action_delay = random.uniform(0.4, 1.1)
+            rprint(f"[yellow]Clicking 'Got it' in {action_delay:.2f} seconds...[/yellow]")
+            time.sleep(action_delay)
+            
+            got_it_button.click()
+            rprint("[green]Clicked 'Got it' on the SuperSwipe info popup.[/green]")
+
+        except TimeoutException:
+            rprint("[yellow]'Got it' button not immediately found or clickable. Trying 'Close' button as fallback...[/yellow]")
+            # Fallback to the "Close" button if "Got it" is not found/clickable
+            close_button = WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable(SUPERSWIPE_POPUP_CLOSE_BUTTON_LOCATOR)
+            )
+            action_delay = random.uniform(0.4, 1.1)
+            rprint(f"[yellow]Clicking 'Close' button in {action_delay:.2f} seconds...[/yellow]")
+            time.sleep(action_delay)
+            close_button.click()
+            rprint("[green]Clicked 'Close' button on the SuperSwipe info popup.[/green]")
+            
+        # Add a pause after clicking to allow the UI to dismiss the popup and settle
+        time.sleep(random.uniform(1.0, 1.8))
+        
+        return True # Popup was handled
+
+    except TimeoutException:
+        # The popup was not found within the timeout period. This is normal.
+        # rprint("[grey50]Debug: SuperSwipe info popup not found.[/grey50]")
+        return False
+    except Exception as e:
+        rprint(f"[red]An error occurred while handling the SuperSwipe info popup: {e}[/red]")
+        # try:
+        #     rprint(f"[grey37]Page source on SuperSwipe info error:\n{driver.page_source[:2000]}[/grey37]")
+        # except: pass
+        return False
+def handle_premium_ad_popup(driver, timeout=1):
+    """
+    Checks for the "Premium" upsell ad popup and clicks "Maybe later".
+
+    Args:
+        driver: The Appium WebDriver instance.
+        timeout (int): Maximum time to wait for the popup elements.
+
+    Returns:
+        bool: True if the ad was detected and handled, False otherwise.
+    """
+    try:
+        # 1. Check for the presence of a distinctive element of the ad.
+        #    Using WebDriverWait to ensure the element is present.
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located(PREMIUM_AD_IDENTIFIER_TEXT_LOCATOR)
+        )
+        rprint("[yellow]Premium ad popup detected ('Find who you’re looking for, faster').[/yellow]")
+
+        # 2. If the ad is detected, find and click the "Maybe later" button.
+        maybe_later_button = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable(PREMIUM_AD_MAYBE_LATER_BUTTON_LOCATOR)
+        )
+        
+        # Add a small random delay for natural interaction
+        action_delay = random.uniform(0.5, 1.3)
+        rprint(f"[yellow]Clicking 'Maybe later' in {action_delay:.2f} seconds...[/yellow]")
+        time.sleep(action_delay)
+        
+        maybe_later_button.click()
+        rprint("[green]Clicked 'Maybe later' on the premium ad popup.[/green]")
+        
+        # Add a pause after clicking to allow the UI to dismiss the popup and settle
+        time.sleep(random.uniform(1.0, 2.0))
+        
+        return True # Ad was handled
+
+    except TimeoutException:
+        # The ad was not found within the timeout period. This is normal if it doesn't appear.
+        # rprint("[grey50]Debug: Premium ad popup not found.[/grey50]") # Can be noisy
+        return False
+    except Exception as e:
+        rprint(f"[red]An error occurred while handling the premium ad popup: {e}[/red]")
+        # It's good to see the page source if an unexpected error occurs here
+        # try:
+        #     rprint(f"[grey37]Page source on premium ad error:\n{driver.page_source[:2000]}[/grey37]")
+        # except: pass
+        return False
 
 def is_popup_present(driver):
     try:
@@ -20,7 +367,7 @@ def is_popup_present(driver):
     except NoSuchElementException:
         return False
 
-def handle_interested_confirmation_popup(driver, timeout=3):
+def handle_interested_confirmation_popup(driver, timeout=1):
     """
     Checks for the "Interested?" confirmation popup and clicks "YES".
     This popup typically appears to confirm a right swipe action.
@@ -80,90 +427,150 @@ def vertical_scroll(driver, is_first_swipe=False):
         is_first_swipe: If True, performs a longer initial scroll
     """
     # Reduced delay before vertical scroll (0.2-0.8 seconds)
-    time.sleep(random.uniform(0.2, 0.8))
-    
+    # time.sleep(random.uniform(0.2, 0.8))
+    screen_width, screen_height = get_screen_dimensions(driver)
+    if not screen_width or not screen_height:
+        rprint("[red]Failed to get screen dimensions for vertical scroll. Aborting scroll.[/red]")
+        return
     # Perform vertical scroll with increased range
-    start_y = random.randint(1000, 1400)
+    start_y = int(screen_height * random.uniform(0.50, 0.70))
     
     # Longer scroll for first swipe
     if is_first_swipe:
-        end_y = start_y - random.randint(800, 1100)  # Longer initial scroll
+        scroll_distance = int(screen_height * random.uniform(0.40, 0.55))
     else:
-        end_y = start_y - random.randint(600, 900)  # Normal scroll distance
+        scroll_distance = int(screen_height * random.uniform(0.30, 0.45))
+    end_y = start_y - scroll_distance
     
-    start_x = random.randint(300, 700)
+    # Ensure end_y is not negative (scrolling off the top)
+    end_y = max(50, end_y) # Keep at least 50px from top
+
+    # Start X: somewhere in the middle 30% to 70% of screen width
+    start_x = int(screen_width * random.uniform(0.30, 0.70))
     
+    rprint(f"[grey50]Vertical scroll: screen_h={screen_height}, start_y={start_y}, end_y={end_y}, start_x={start_x}[/grey50]")
+
     actions = ActionChains(driver)
     actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
     
-    # Reduced delay before starting scroll
-    time.sleep(random.uniform(0.05, 0.15))
+    time.sleep(random.uniform(0.05, 0.15)) # Brief pause before action
     
     actions.w3c_actions.pointer_action.move_to_location(start_x, start_y)
     actions.w3c_actions.pointer_action.pointer_down()
     
-    # Add intermediate points for natural movement
-    num_points = random.randint(2, 3)  # Reduced points for faster scroll
+    num_points = random.randint(2, 4) # More intermediate points for smoother scroll
+    duration_ms = random.randint(300, 600) # Total scroll duration in ms
+    
     for i in range(num_points):
         progress = (i + 1) / num_points
-        current_y = start_y + (end_y - start_y) * progress
-        current_x = start_x + random.randint(-15, 15)
+        current_y = int(start_y + (end_y - start_y) * progress)
+        # Slight horizontal variance during scroll
+        current_x = int(start_x + random.randint(-int(screen_width*0.02), int(screen_width*0.02))) 
+        current_x = max(0, min(screen_width -1, current_x)) # Boundary check for x
+
         actions.w3c_actions.pointer_action.move_to_location(current_x, current_y)
-        time.sleep(random.uniform(0.02, 0.08))  # Reduced delay between points
+        # time.sleep per point can be derived from total duration
+        time.sleep((duration_ms / 1000.0) / num_points * random.uniform(0.8, 1.2)) 
     
+    actions.w3c_actions.pointer_action.move_to_location(start_x, end_y) # Ensure final point is reached
     actions.w3c_actions.pointer_action.release()
     actions.perform()
-    
-    # Reduced delay after vertical scroll (0.3-1.2 seconds)
-    time.sleep(random.uniform(0.3, 1.2))
+    rprint(f"[grey50]Vertical scroll performed from ({start_x},{start_y}) to ({start_x},{end_y}).[/grey50]")
 
 def horizontal_swipe(driver, swipe_right=True):
     """
-    Perform a single horizontal swipe.
-    
-    Args:
-        driver: Appium WebDriver instance
-        swipe_right: If True, swipes right; if False, swipes left
+    Perform a single horizontal swipe, aiming for a faster, more decisive gesture.
     """
-    start_x = random.randint(200, 800)
-    start_y = random.randint(900, 1500)
+    screen_width, screen_height = get_screen_dimensions(driver)
+    if not screen_width or not screen_height:
+        rprint("[red]Failed to get screen dimensions for horizontal swipe. Aborting swipe.[/red]")
+        return
+
+    # Start Y: Middle portion of the screen, slightly more constrained.
+    start_y_percentage = random.uniform(0.40, 0.60) # Centered vertically more
+    start_y = int(screen_height * start_y_percentage)
     
-    # Calculate end position with increased distance
+    # Swipe distance: Keep it substantial (55% to 70% of screen width).
+    # Slightly reduced the upper bound a bit from 75% to 70% to prevent overshooting if screen is small,
+    # but the key is the speed and decisiveness.
+    swipe_distance_percentage = random.uniform(0.55, 0.70) 
+    swipe_distance = int(screen_width * swipe_distance_percentage)
+
     if swipe_right:
-        end_x = start_x + random.randint(500, 800)  # Increased right swipe distance
-    else:
-        end_x = start_x - random.randint(500, 800)  # Increased left swipe distance
+        # Start X: From left part of the screen (e.g., 15% to 25%) - start a bit more inwards
+        start_x_percentage = random.uniform(0.15, 0.25)
+        start_x = int(screen_width * start_x_percentage)
+        end_x = start_x + swipe_distance
+    else: # swipe_left
+        # Start X: From right part of the screen (e.g., 75% to 85%) - start a bit more inwards
+        start_x_percentage = random.uniform(0.75, 0.85)
+        start_x = int(screen_width * start_x_percentage)
+        end_x = start_x - swipe_distance
+
+    # Ensure end_x stays well within screen bounds with a slightly larger margin
+    end_x = max(int(screen_width * 0.08), min(int(screen_width * 0.92), end_x)) # 8% margin
+
+    # Vertical variation at the end of the swipe - keep it moderate
+    end_y_variation_percentage = random.uniform(-0.06, 0.06) # +/- 6% of screen height
+    end_y = start_y + int(screen_height * end_y_variation_percentage)
+    end_y = max(int(screen_height*0.20), min(int(screen_height*0.80), end_y)) # Keep Y within 20-80% to avoid edges
     
-    # Add slight vertical variation to end position
-    end_y = start_y + random.randint(-150, 150)  # Increased vertical variation
-    
+    rprint(f"[grey50]Horizontal swipe: screen_w={screen_width}, start_x={start_x} ({start_x_percentage*100:.1f}%), end_x={end_x}, dist_perc={swipe_distance_percentage*100:.1f}%[/grey50]")
+
     actions = ActionChains(driver)
     actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
     
-    # Minimal delay before horizontal swipe
-    time.sleep(random.uniform(0.02, 0.08))
+    # Very minimal pause before action starts
+    time.sleep(random.uniform(0.01, 0.05)) 
     
     actions.w3c_actions.pointer_action.move_to_location(start_x, start_y)
     actions.w3c_actions.pointer_action.pointer_down()
     
-    # Add intermediate points for more natural movement
-    num_points = random.randint(2, 3)  # Reduced points for faster swipe
-    for i in range(num_points):
-        progress = (i + 1) / num_points
-        current_x = start_x + (end_x - start_x) * progress
-        current_y = start_y + (end_y - start_y) * progress
-        # Add more random variation for natural movement
-        current_x += random.randint(-20, 20)
-        current_y += random.randint(-20, 20)
-        actions.w3c_actions.pointer_action.move_to_location(current_x, current_y)
-        time.sleep(random.uniform(0.01, 0.04))  # Very short delay between points
+    # --- Adjusting for speed and decisiveness ---
+    # Fewer intermediate points, faster total duration for a "quicker flick"
+    num_points = random.randint(2, 4) 
+    duration_ms = random.randint(150, 350) # Target total swipe duration in ms (FASTER)
+
+    # Create a list of points including the start and end
+    points = [(start_x, start_y)]
+    for i in range(1, num_points + 1):
+        progress = i / (num_points + 1.0) # Ensure progress goes towards end point
+        
+        # For a more "natural" arc or fling, the intermediate points shouldn't be perfectly linear.
+        # We can make the x-component progress faster initially or towards the end for a fling.
+        # Simple approach: slightly accelerate progress for x
+        fling_progress_x = progress ** 0.8 # Makes it move a bit faster initially on x-axis
+        
+        current_x = int(start_x + (end_x - start_x) * fling_progress_x)
+        current_y = int(start_y + (end_y - start_y) * progress) # Y can move more linearly
+
+        # Add less random jitter if we want a more direct, fast swipe
+        current_x += random.randint(-int(screen_width*0.01), int(screen_width*0.01))
+        current_y += random.randint(-int(screen_height*0.01), int(screen_height*0.01))
+        
+        current_x = max(0, min(screen_width -1, current_x))
+        current_y = max(0, min(screen_height -1, current_y))
+        points.append((current_x, current_y))
     
+    # Add the final precise end point
+    if points[-1] != (end_x, end_y): # Ensure the last point is the target
+        points.append((end_x, end_y))
+
+    # Perform the moves
+    for k in range(1, len(points)): # Start from the second point in our list
+        px, py = points[k]
+        # The duration of each segment of the move
+        segment_duration_s = (duration_ms / 1000.0) / (len(points)-1) 
+        actions.w3c_actions.pointer_action.move_to_location(px, py)
+        time.sleep(segment_duration_s * random.uniform(0.8, 1.2)) # Slight variation in segment timing
+    
+    # No need for an extra move_to_location if the loop handles the last point correctly.
     actions.w3c_actions.pointer_action.release()
     actions.perform()
     
-    # Reduced delay after horizontal swipe (0.3-0.8 seconds)
-    time.sleep(random.uniform(0.3, 0.8))
-
+    swipe_dir = "RIGHT" if swipe_right else "LEFT"
+    rprint(f"[grey50]Horizontal swipe {swipe_dir} performed (duration: ~{duration_ms}ms).[/grey50]")
+    time.sleep(random.uniform(0.2, 0.6)) # Slightly reduced pause after swipe
 def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
     """
     Perform realistic swipes on Bumble with profile checking behavior.
@@ -182,7 +589,26 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
             continue # Restart loop for the next profile evaluation
 
+        # 2. Handle "Premium Ad" Popup (NEW)
+        if handle_premium_ad_popup(driver): # Call the new handler
+            # Log already in handle_premium_ad_popup
+            # This popup usually dismisses to continue swiping, so we 'continue' the loop.
+            continue
+        if handle_superswipe_info_popup(driver): # Call the new handler
+            # This popup usually dismisses to continue swiping.
+            continue
+        if handle_its_a_match_and_opening_moves_popup(driver):
+            continue 
+        if handle_first_move_info_screen(driver):
+            # This screen dismissal usually returns to swiping.
+            continue
 
+        # if handle_they_saw_you_premium_popup(driver):
+        #     # This popup dismissal should return to swiping.
+        #     continue
+        if handle_first_move_info_screen(driver):
+            # This screen dismissal usually returns to swiping.
+            continue
         if handle_adjust_filters_prompt(driver): # Uses internal timeout
             rprint("[yellow]'Adjust filters' prompt appeared. Attempting to modify filters.[/yellow]")
             if adjust_age_filter_and_apply(driver): # Uses internal timeout
@@ -199,7 +625,7 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             rprint("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
             return # Stop swiping
 
-        time.sleep(random.uniform(2, 3))
+        # time.sleep(random.uniform(0, 2))
         
         # 60% chance to check profile details
         if random.randint(1, 10) <= 6:

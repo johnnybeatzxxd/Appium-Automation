@@ -123,7 +123,8 @@ def connect_to_phone(phone_id: str) -> dict:
 
 if __name__ == "__main__":
     # Example usage
-    phone_id = "your_phone_id_here"
+    
+    phone_id = "569893771953571212"
     connection_info = connect_to_phone(phone_id)
     if connection_info:
         print("Phone is ready for use!")

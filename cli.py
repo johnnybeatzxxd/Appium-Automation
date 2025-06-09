@@ -92,8 +92,11 @@ def setup_appium_driver(connection_info: dict) -> webdriver.Remote:
     options.device_name = device_name
     options.automation_name = "UiAutomator2"
     options.app_package = "com.bumble.app"
+    options.app_activity = ".ui.launcher.BumbleLauncherActivity"  
     options.no_reset = True
     options.uiautomator2_server_install_timeout = 220000
+    options.new_command_timeout = 300
+    options.auto_grant_permissions = True
     
     APPIUM_SERVER_URL = "http://127.0.0.1:4723"
     
