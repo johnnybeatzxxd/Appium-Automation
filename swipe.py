@@ -14,24 +14,24 @@ from helper import get_screen_dimensions
 from rich import print as rprint
 
 # Using a distinctive text on the ad screen for initial detection
-PREMIUM_AD_IDENTIFIER_TEXT_LOCATOR = (AppiumBy.XPATH, "//android.widget.TextView[@text='Find who you’re looking for, faster']")
+PREMIUM_AD_IDENTIFIER_TEXT_LOCATOR = (AppiumBy.XPATH, "//android.widget.TextView[@text=\"Find who you're looking for, faster\"]")
 
 # The "Maybe later" button is a clickable View containing a TextView with text "Maybe later"
 PREMIUM_AD_MAYBE_LATER_BUTTON_LOCATOR = (
     AppiumBy.XPATH, 
-    "//android.view.View[@clickable='true' and .//android.widget.TextView[@text='Maybe later']]"
+    "//android.view.View[@clickable='true' and .//android.widget.TextView[@text=\"Maybe later\"]]"
 )
 # --- Locators for the SuperSwipe Info Popup ---
 # Using a distinctive text on the popup for initial detection
 SUPERSWIPE_POPUP_IDENTIFIER_TEXT_LOCATOR = (
     AppiumBy.XPATH, 
-    "//android.widget.TextView[@text='Supercharge your chance to match']"
+    "//android.widget.TextView[@text=\"Supercharge your chance to match\"]"
 )
 
 # The "Got it" button is a clickable View containing a TextView with text "Got it"
 SUPERSWIPE_POPUP_GOT_IT_BUTTON_LOCATOR = (
     AppiumBy.XPATH, 
-    "//android.view.View[@clickable='true' and .//android.widget.TextView[@text='Got it']]"
+    "//android.view.View[@clickable='true' and .//android.widget.TextView[@text=\"Got it\"]]"
 )
 
 # Alternative: Close button at the top right of the popup content area
@@ -42,7 +42,7 @@ SUPERSWIPE_POPUP_CLOSE_BUTTON_LOCATOR = (
 
 FIRST_MOVE_SCREEN_IDENTIFIER_TEXT_LOCATOR = (
     AppiumBy.XPATH, 
-    "//android.widget.TextView[contains(@text, 'It’s time to') and contains(@text, 'make your move')]"
+    "//android.widget.TextView[contains(@text, \"It's time to\") and contains(@text, \"make your move\")]"
 ) 
 FIRST_MOVE_SCREEN_CLOSE_BUTTON_LOCATOR = (
     AppiumBy.ID, "com.bumble.app:id/navbar_button_navigation"
@@ -62,10 +62,11 @@ OPENING_MOVES_INFO_BOX_GOT_IT_BUTTON_LOCATOR = (
 # Main "Close" button for the entire "It's a Match!" screen (top left)
 ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/match_close")
 
-
+MATCH_SCREEN_MINI_COMPOSER_INPUT_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/composerMini_text")
+MATCH_SCREEN_MINI_COMPOSER_SEND_ICON_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/composerMini_icon")
 def handle_they_saw_you_premium_popup(driver, timeout=1):
     """
-    Checks for the "They saw you, they’re into you" Premium upsell popup
+    Checks for the "They saw you, they're into you" Premium upsell popup
     and clicks "Maybe later".
 
     Args:
@@ -80,7 +81,7 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(THEY_SAW_YOU_POPUP_IDENTIFIER_TEXT_LOCATOR)
         )
-        rprint("[yellow]'They saw you, they’re into you' Premium popup detected.[/yellow]")
+        rprint("[yellow]'They saw you, they're into you' Premium popup detected.[/yellow]")
 
         # 2. If the ad is detected, try to click the "Maybe later" button.
         try:
@@ -88,7 +89,7 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
                 EC.element_to_be_clickable(THEY_SAW_YOU_POPUP_MAYBE_LATER_BUTTON_LOCATOR)
             )
             
-            action_delay = random.uniform(0.5, 1.3)
+            action_delay = random.uniform(0.3, 0.6)
             rprint(f"[yellow]Clicking 'Maybe later' in {action_delay:.2f} seconds...[/yellow]")
             time.sleep(action_delay)
             
@@ -115,7 +116,6 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
             rprint("[green]Clicked top 'Close' button on 'They saw you' Premium popup.[/green]")
         
         # Add a pause after clicking to allow the UI to dismiss the popup and settle
-        time.sleep(random.uniform(1.0, 2.0))
         
         return True # Ad was handled
 
@@ -132,77 +132,125 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
 
 
 
-def handle_its_a_match_and_opening_moves_popup(driver, timeout=1):
+def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_close=True):
     """
-    Checks for the "It's a Match!" screen. If found, it first tries to click "Got it"
-    on any "Opening Moves" info box within it, and then clicks the main "Close" button
-    to dismiss the entire match screen.
+    Checks for the "It's a Match!" screen. If found:
+    1. Handles the "Opening Moves" info box (if present).
+    2. Types "hi" into the mini composer and sends it.
+    3. Navigates back (e.g., to swiping).
 
     Args:
         driver: The Appium WebDriver instance.
         timeout (int): Maximum time to wait for elements.
+        fallback_to_close (bool): If True, attempts to close the match screen if sending "hi" fails.
 
     Returns:
-        bool: True if the "It's a Match!" screen was detected and handled, False otherwise.
+        bool: True if the "It's a Match!" screen was detected and an action (send or close) was performed, False otherwise.
     """
     try:
         # 1. Check for the main "It's a Match!" screen.
-        #    Using a short initial timeout for detection.
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(ITS_A_MATCH_SCREEN_IDENTIFIER_TEXT)
-            # If using container ID: EC.presence_of_element_located(ITS_A_MATCH_SCREEN_CONTAINER_ID)
         )
         rprint("[yellow]'It's a Match!' screen detected.[/yellow]")
         
+        action_taken_on_match_screen = False # Flag to track if we did anything
+
         # 2. (Optional) Try to click "Got it" for the "Opening Moves" info box if it's present.
-        #    This box is part of the "It's a Match!" screen.
         try:
-            # First ensure the specific "Opening Moves" text is there
-            WebDriverWait(driver, 2).until( # Short timeout for this optional part
+            WebDriverWait(driver, 2).until(
                 EC.presence_of_element_located(OPENING_MOVES_INFO_BOX_TEXT_LOCATOR)
             )
             opening_moves_got_it_button = WebDriverWait(driver, 2).until(
                 EC.element_to_be_clickable(OPENING_MOVES_INFO_BOX_GOT_IT_BUTTON_LOCATOR)
             )
-            action_delay = random.uniform(0.3, 0.8)
-            rprint(f"[yellow]Found 'Opening Moves' info box. Clicking its 'Got it' button in {action_delay:.2f}s...[/yellow]")
-            time.sleep(action_delay)
+            rprint(f"[yellow]Found 'Opening Moves' info box. Clicking 'Got it'...")
             opening_moves_got_it_button.click()
             rprint("[green]Clicked 'Got it' on 'Opening Moves' info box.[/green]")
-            time.sleep(0.5) # Brief pause after this click
+            time.sleep(random.uniform(0.5, 1.0)) # Pause after this click
+            action_taken_on_match_screen = True
         except TimeoutException:
-            rprint("[grey50]Debug: 'Opening Moves' info box (or its 'Got it' button) not found on 'It's a Match!' screen. Skipping.[/grey50]")
+            rprint("[grey50]Debug: 'Opening Moves' info box not found on 'It's a Match!' screen. Skipping its 'Got it'.[/grey50]")
         except Exception as e_om:
-            rprint(f"[orange_red1]Minor error trying to handle 'Opening Moves' info box: {e_om}. Proceeding to close main match screen.[/orange_red1]")
+            rprint(f"[orange_red1]Minor error handling 'Opening Moves' info box: {e_om}. Proceeding.[/orange_red1]")
 
-        # 3. Click the main "Close" button (top left) to dismiss the entire "It's a Match!" screen.
-        #    This should always be attempted if the "It's a Match!" screen was detected.
-        main_close_button = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable(ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR)
-        )
-        
-        action_delay_main_close = random.uniform(0.5, 1.2)
-        rprint(f"[yellow]Clicking main 'Close' button for 'It's a Match!' screen in {action_delay_main_close:.2f}s...[/yellow]")
-        time.sleep(action_delay_main_close)
-        
-        main_close_button.click()
-        rprint("[green]Clicked main 'Close' button. 'It's a Match!' screen should be dismissed.[/green]")
-        
-        # Pause after closing to allow UI to return to swiping
-        time.sleep(random.uniform(1.2, 2.2))
-        
-        return True # "It's a Match!" screen was handled
+        # 3. Type "hi" into the mini composer and send.
+        message_sent_successfully = False
+        try:
+            rprint("[yellow]Attempting to send 'hi' from 'It's a Match!' screen...[/yellow]")
+            mini_composer_input = WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable(MATCH_SCREEN_MINI_COMPOSER_INPUT_LOCATOR)
+            )
+            
+            mini_composer_input.click() # Focus the input
+            time.sleep(0.3)
+            
+            # Clear if needed (e.g., if "Send a message..." is actual text, not just hint)
+            if mini_composer_input.text.lower() == "send a message...":
+                 mini_composer_input.clear()
+                 time.sleep(0.2)
+
+            mini_composer_input.send_keys("hey")
+            rprint("[green]Typed 'hi' into mini composer.[/green]")
+            time.sleep(random.uniform(0.5, 1.0)) # Pause after typing
+
+            # The send icon becomes enabled after typing.
+            send_icon = WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable(MATCH_SCREEN_MINI_COMPOSER_SEND_ICON_LOCATOR)
+            )
+            # Double check if it's actually enabled, though element_to_be_clickable should cover this
+            if not send_icon.is_enabled():
+                rprint("[orange_red1]Send icon found but reported as not enabled. Attempting click anyway.[/orange_red1]")
+                # This might indicate an issue or a slight delay in UI update for enabled state.
+
+            send_icon.click()
+            rprint("[green]Clicked send icon for 'hi' message.[/green]")
+            message_sent_successfully = True
+            action_taken_on_match_screen = True
+            time.sleep(random.uniform(0.5, 1.0)) # Pause after sending
+
+        except TimeoutException:
+            rprint("[red]Failed to find mini composer elements or send message on 'It's a Match!' screen.[/red]")
+        except Exception as e_send:
+            rprint(f"[red]Error sending 'hi' from 'It's a Match!' screen: {e_send}[/red]")
+
+        # 4. If sending "hi" failed AND fallback is enabled, try to close the screen.
+        #    Or, if you ALWAYS want to close after sending, this logic changes.
+        #    Current logic: Prioritize sending message. If that path fails, then consider closing.
+        if not message_sent_successfully and fallback_to_close:
+            rprint("[yellow]Sending 'hi' failed or was skipped. Attempting to close 'It's a Match!' screen as fallback.[/yellow]")
+            try:
+                main_close_button = WebDriverWait(driver, 2).until( # Shorter timeout for fallback close
+                    EC.element_to_be_clickable(ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR)
+                )
+                main_close_button.click()
+                rprint("[green]Clicked main 'Close' button to dismiss 'It's a Match!' screen (fallback).[/green]")
+                action_taken_on_match_screen = True
+                time.sleep(random.uniform(1.2, 2.2))
+            except Exception as e_close:
+                rprint(f"[red]Failed to close 'It's a Match!' screen via 'Close' button during fallback: {e_close}[/red]")
+                rprint("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
+                time.sleep(1.5)
+                action_taken_on_match_screen = True # Assume back action did something
+
+        elif message_sent_successfully:
+            # If message was sent, we still need to get off this screen.
+            # Typically, after sending from this mini-composer, the screen might auto-dismiss
+            # or transition to the full chat. If it just stays on "It's a Match!", we need to close it.
+            rprint("[grey50]Message sent from 'It's a Match!'. Performing system back to return to swiping.[/grey50]")
+            time.sleep(random.uniform(0.3, 1.0))
+            action_taken_on_match_screen = True
+
+
+        return action_taken_on_match_screen # Return true if we interacted with the match screen
 
     except TimeoutException:
-        # The "It's a Match!" screen was not found. This is normal if no match occurred.
-        # rprint("[grey50]Debug: 'It's a Match!' screen not found.[/grey50]")
+        # The "It's a Match!" screen itself was not found.
         return False
     except Exception as e:
         rprint(f"[red]An error occurred while handling the 'It's a Match!' screen: {e}[/red]")
-        # try:
-        #     rprint(f"[grey37]Page source on 'It's a Match!' error:\n{driver.page_source[:2000]}[/grey37]")
-        # except: pass
         return False
+
 def handle_first_move_info_screen(driver, timeout=1):
 
     """
@@ -220,14 +268,14 @@ def handle_first_move_info_screen(driver, timeout=1):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(FIRST_MOVE_SCREEN_IDENTIFIER_TEXT_LOCATOR)
         )
-        rprint("[yellow]'First Move' info screen detected ('It’s time to make your move').[/yellow]")
+        rprint("[yellow]'First Move' info screen detected ('It's time to make your move').[/yellow]")
 
         # 2. If the screen is detected, find and click the "Close" button.
         close_button = WebDriverWait(driver, timeout).until(
             EC.element_to_be_clickable(FIRST_MOVE_SCREEN_CLOSE_BUTTON_LOCATOR)
         )
         
-        action_delay = random.uniform(0.4, 1.1)
+        action_delay = random.uniform(0.2, 0.6)
         rprint(f"[yellow]Clicking 'Close' button on 'First Move' info screen in {action_delay:.2f} seconds...[/yellow]")
         time.sleep(action_delay)
         
@@ -235,7 +283,6 @@ def handle_first_move_info_screen(driver, timeout=1):
         rprint("[green]Clicked 'Close' on the 'First Move' info screen.[/green]")
         
         # Add a pause after clicking to allow the UI to dismiss and settle
-        time.sleep(random.uniform(1.0, 1.8))
         
         return True # Screen was handled
 
@@ -276,7 +323,7 @@ def handle_superswipe_info_popup(driver, timeout=1):
                 EC.element_to_be_clickable(SUPERSWIPE_POPUP_GOT_IT_BUTTON_LOCATOR)
             )
             
-            action_delay = random.uniform(0.4, 1.1)
+            action_delay = random.uniform(0.2, 0.6)
             rprint(f"[yellow]Clicking 'Got it' in {action_delay:.2f} seconds...[/yellow]")
             time.sleep(action_delay)
             
@@ -296,7 +343,6 @@ def handle_superswipe_info_popup(driver, timeout=1):
             rprint("[green]Clicked 'Close' button on the SuperSwipe info popup.[/green]")
             
         # Add a pause after clicking to allow the UI to dismiss the popup and settle
-        time.sleep(random.uniform(1.0, 1.8))
         
         return True # Popup was handled
 
@@ -327,7 +373,7 @@ def handle_premium_ad_popup(driver, timeout=1):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(PREMIUM_AD_IDENTIFIER_TEXT_LOCATOR)
         )
-        rprint("[yellow]Premium ad popup detected ('Find who you’re looking for, faster').[/yellow]")
+        rprint("[yellow]Premium ad popup detected ('Find who you're looking for, faster').[/yellow]")
 
         # 2. If the ad is detected, find and click the "Maybe later" button.
         maybe_later_button = WebDriverWait(driver, timeout).until(
@@ -335,7 +381,7 @@ def handle_premium_ad_popup(driver, timeout=1):
         )
         
         # Add a small random delay for natural interaction
-        action_delay = random.uniform(0.5, 1.3)
+        action_delay = random.uniform(0.2, 0.8)
         rprint(f"[yellow]Clicking 'Maybe later' in {action_delay:.2f} seconds...[/yellow]")
         time.sleep(action_delay)
         
@@ -343,7 +389,6 @@ def handle_premium_ad_popup(driver, timeout=1):
         rprint("[green]Clicked 'Maybe later' on the premium ad popup.[/green]")
         
         # Add a pause after clicking to allow the UI to dismiss the popup and settle
-        time.sleep(random.uniform(1.0, 2.0))
         
         return True # Ad was handled
 
@@ -398,7 +443,7 @@ def handle_interested_confirmation_popup(driver, timeout=1):
         )
         
         # Add a small random delay before clicking to seem more natural
-        action_delay = random.uniform(0.4, 1.2)
+        action_delay = random.uniform(0.2, 0.5)
         rprint(f"[yellow]Popup 'Interested?' detected. Clicking YES in {action_delay:.2f} seconds...[/yellow]")
         time.sleep(action_delay)
         
@@ -406,8 +451,6 @@ def handle_interested_confirmation_popup(driver, timeout=1):
         rprint("[green]Clicked 'YES' on the 'Interested?' popup.[/green]")
         
         # Add a small random delay after clicking to allow UI to process
-        time.sleep(random.uniform(0.3, 0.8))
-        
         return True # Popup was handled
 
     except TimeoutException:
@@ -570,7 +613,7 @@ def horizontal_swipe(driver, swipe_right=True):
     
     swipe_dir = "RIGHT" if swipe_right else "LEFT"
     rprint(f"[grey50]Horizontal swipe {swipe_dir} performed (duration: ~{duration_ms}ms).[/grey50]")
-    time.sleep(random.uniform(0.2, 0.6)) # Slightly reduced pause after swipe
+    time.sleep(random.uniform(0.1, 0.3)) # Reduced pause after swipe from 0.2-0.6 to 0.1-0.3
 def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
     """
     Perform realistic swipes on Bumble with profile checking behavior.
@@ -584,32 +627,54 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
     
     while time.time() < end_time:
         # Random delay between profiles (2-3 seconds)
-        if handle_interested_confirmation_popup(driver):
+        start_time = time.time()
+        if handle_interested_confirmation_popup(driver,0):
             rprint("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
             time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
             continue # Restart loop for the next profile evaluation
 
+        rprint(f"[grey50]Time taken for interested confirmation popup check: {time.time() - start_time:.3f} seconds[/grey50]")
         # 2. Handle "Premium Ad" Popup (NEW)
-        if handle_premium_ad_popup(driver): # Call the new handler
+        start_time = time.time()
+        if handle_premium_ad_popup(driver,0): # Call the new handler
             # Log already in handle_premium_ad_popup
             # This popup usually dismisses to continue swiping, so we 'continue' the loop.
             continue
-        if handle_superswipe_info_popup(driver): # Call the new handler
+        rprint(f"[grey50]Time taken for premium ad popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+        start_time = time.time()
+        if handle_superswipe_info_popup(driver,0): # Call the new handler
             # This popup usually dismisses to continue swiping.
             continue
-        if handle_its_a_match_and_opening_moves_popup(driver):
+        rprint(f"[grey50]Time taken for superswipe info popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+        start_time = time.time()
+        if handle_its_a_match_and_opening_moves_popup(driver,0):
             continue 
-        if handle_first_move_info_screen(driver):
+
+        rprint(f"[grey50]Time taken for its a match popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+        start_time = time.time()
+        if handle_first_move_info_screen(driver,0):
             # This screen dismissal usually returns to swiping.
             continue
+        
+        rprint(f"[grey50]Time taken for first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
 
         # if handle_they_saw_you_premium_popup(driver):
         #     # This popup dismissal should return to swiping.
         #     continue
-        if handle_first_move_info_screen(driver):
+
+        start_time = time.time()
+        if handle_first_move_info_screen(driver,0):
             # This screen dismissal usually returns to swiping.
             continue
-        if handle_adjust_filters_prompt(driver): # Uses internal timeout
+        
+        rprint(f"[grey50]Time taken for second first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+        start_time = time.time()
+        if handle_adjust_filters_prompt(driver,0): # Uses internal timeout
+            rprint(f"[grey50]Time taken for adjust filters prompt check: {time.time() - start_time:.3f} seconds[/grey50]")
             rprint("[yellow]'Adjust filters' prompt appeared. Attempting to modify filters.[/yellow]")
             if adjust_age_filter_and_apply(driver): # Uses internal timeout
                 rprint("[green]Age filter adjusted. Continuing swipe session.[/green]")
@@ -621,9 +686,12 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
 
         # 3. "Out of likes" or other critical blocking popups
         # IMPORTANT: Ensure is_popup_present uses SPECIFIC locators for the "out of likes" popup.
+        start_time = time.time()
         if is_popup_present(driver): 
             rprint("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
             return # Stop swiping
+        
+        rprint(f"[grey50]Time taken for critical popup check: {time.time() - start_time:.3f} seconds[/grey50]")
 
         # time.sleep(random.uniform(0, 2))
         

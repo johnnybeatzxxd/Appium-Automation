@@ -14,13 +14,14 @@ import chat
 
 options = UiAutomator2Options()
 options.platform_name = "Android"
-options.platform_version = "12"
-options.device_name = "128.14.109.187"
+options.platform_version = "15"
+options.device_name = "124.236.26.8:22078"
 options.automation_name = "UiAutomator2"
 options.app_package = "com.bumble.app"
 options.app_activity = ".ui.launcher.BumbleLauncherActivity"  
 options.no_reset = True
 options.uiautomator2_server_install_timeout = 220000
+options.adb_exec_timeout = 90000
 
 APPIUM_SERVER_URL = "http://127.0.0.1:4723"
 driver = None
@@ -37,9 +38,9 @@ try:
     # if open_page(driver, "People"):
     #     realistic_swipe(driver,1)
     print("\n--- Attempting Chat Processing Phase ---")
-    if open_page(driver, "People"): 
+    if open_page(driver, "Chats"): 
         print("Successfully navigated to Peoples page.")
-        realistic_swipe(driver,5)
+        chat.process_new_matches(driver)
         print("Finished chat processing phase.")
     #
 except Exception as e:

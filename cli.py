@@ -14,6 +14,7 @@ from connection import connect_to_phone
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
 from swipe import realistic_swipe
+from adb import get_local_devices
 
 # Initialize rich console for better formatting
 console = Console()
@@ -44,7 +45,7 @@ def get_device_info(connection_address: str) -> Tuple[str, str]:
         return platform_version, connection_address
         
     except subprocess.CalledProcessError as e:
-        rprint(f"[red]Failed to get device info: {e.stderr.decode()}[/red]")
+        rprint(f"[red]Failed to get device info: {e.stderr if isinstance(e.stderr, str) else e.stderr.decode()}[/red]")
         return "12", connection_address  # Default values if command fails
     except Exception as e:
         rprint(f"[red]Error getting device info: {str(e)}[/red]")
@@ -97,6 +98,7 @@ def setup_appium_driver(connection_info: dict) -> webdriver.Remote:
     options.uiautomator2_server_install_timeout = 220000
     options.new_command_timeout = 300
     options.auto_grant_permissions = True
+    options.adb_exec_timeout = 60000
     
     APPIUM_SERVER_URL = "http://127.0.0.1:4723"
     
@@ -158,15 +160,20 @@ def display_phones(phones: List[Dict]):
     table.add_column("Status", style="yellow")
     table.add_column("Brand", style="blue")
     table.add_column("Model", style="magenta")
+    table.add_column("Type", style="cyan")
 
     for idx, phone in enumerate(phones, 1):
         status_color = "green" if phone["status"] == "active" else "red"
+        device_type = phone.get("type", "remote")
+        type_color = "blue" if device_type == "local" else "cyan"
+        
         table.add_row(
             str(idx),
             phone["name"],
             f"[{status_color}]{phone['status']}[/{status_color}]",
             phone["brand"].title(),
-            phone["model"]
+            phone["model"],
+            f"[{type_color}]{device_type}[/{type_color}]"
         )
     
     console.print(table)
@@ -187,33 +194,46 @@ def get_automation_type():
     }
     return automation_types[choice]
 
+def get_all_available_devices() -> List[Dict]:
+    """Get all available devices (both remote and local)."""
+    # Get remote devices
+    remote_devices = get_available_phones()
+    for device in remote_devices:
+        device["type"] = "remote"
+    
+    # Get local devices
+    local_devices = get_local_devices()
+    
+    # Combine both lists
+    return remote_devices + local_devices
+
 def start_automation_all():
     """Start automation for all phones."""
-    phones = get_available_phones()
-    if not phones:
-        rprint("[red]No available phones found![/red]")
+    devices = get_all_available_devices()
+    if not devices:
+        rprint("[red]No available devices found![/red]")
         return
 
-    display_phones(phones)
-    if Confirm.ask("Are you sure you want to start automation for all phones?"):
+    display_phones(devices)
+    if Confirm.ask("Are you sure you want to start automation for all devices?"):
         automation_type = get_automation_type()
         # TODO: Implement actual automation start function
-        rprint(f"[green]Starting {automation_type} automation for all phones...[/green]")
+        rprint(f"[green]Starting {automation_type} automation for all devices...[/green]")
         rprint("[yellow]This is a placeholder for the actual implementation[/yellow]")
 
 def start_automation_specific():
-    """Start automation for a specific phone."""
+    """Start automation for a specific device."""
     global connected_phone_id, driver
-    phones = get_available_phones()
-    if not phones:
-        rprint("[red]No available phones found![/red]")
+    devices = get_all_available_devices()
+    if not devices:
+        rprint("[red]No available devices found![/red]")
         return
 
-    phones = display_phones(phones)
-    phone_numbers = [str(i) for i in range(1, len(phones) + 1)]
-    choice = Prompt.ask("Select phone number", choices=phone_numbers)
+    devices = display_phones(devices)
+    device_numbers = [str(i) for i in range(1, len(devices) + 1)]
+    choice = Prompt.ask("Select device number", choices=device_numbers)
     
-    selected_phone = phones[int(choice) - 1]
+    selected_device = devices[int(choice) - 1]
     
     # Kill ADB server before starting the process
     if not manage_adb_server("kill"):
@@ -225,15 +245,49 @@ def start_automation_specific():
         rprint("[red]Failed to start ADB server. Cannot proceed.[/red]")
         return
     
-    # First make sure the phone is connected and ready
-    rprint(f"\n[yellow]Preparing {selected_phone['name']} for automation...[/yellow]")
-    connection_info = connect_to_phone(selected_phone['id'])
-    if not connection_info:
-        rprint("[red]Failed to prepare phone for automation. Please try again.[/red]")
-        return
+    # Handle device connection based on type
+    if selected_device["type"] == "local":
+        # For local devices, we can use them directly
+        try:
+            # Wait a moment for ADB server to fully start
+            time.sleep(2)
+            
+            # Verify the device is still connected
+            verify_cmd = ["adb", "devices"]
+            result = subprocess.run(verify_cmd, capture_output=True, text=True, check=True)
+            
+            # Check if device is in the list of connected devices
+            device_id = selected_device["id"]
+            if device_id not in result.stdout:
+                # Try to reconnect the device
+                rprint(f"[yellow]Attempting to reconnect device {device_id}...[/yellow]")
+                reconnect_cmd = ["adb", "connect", device_id]
+                reconnect_result = subprocess.run(reconnect_cmd, capture_output=True, text=True, check=True)
+                
+                # Check again after reconnection attempt
+                verify_result = subprocess.run(verify_cmd, capture_output=True, text=True, check=True)
+                if device_id not in verify_result.stdout:
+                    rprint(f"[red]Device {device_id} is not connected and could not be reconnected![/red]")
+                    return
+                
+            connection_info = {
+                "ip": device_id.split(":")[0] if ":" in device_id else device_id,
+                "port": device_id.split(":")[1] if ":" in device_id else "5555"
+            }
+            rprint(f"[green]Using local device: {selected_device['name']}[/green]")
+        except subprocess.CalledProcessError as e:
+            rprint(f"[red]Error verifying local device: {e.stderr if isinstance(e.stderr, str) else e.stderr.decode()}[/red]")
+            return
+    else:
+        # For remote devices, use the existing connection process
+        rprint(f"\n[yellow]Preparing {selected_device['name']} for automation...[/yellow]")
+        connection_info = connect_to_phone(selected_device['id'])
+        if not connection_info:
+            rprint("[red]Failed to prepare device for automation. Please try again.[/red]")
+            return
     
-    # Store the connected phone ID
-    connected_phone_id = selected_phone['id']
+    # Store the connected device ID
+    connected_phone_id = selected_device['id']
     
     # Get automation type
     automation_type = get_automation_type()
@@ -287,17 +341,20 @@ def start_automation_specific():
             
     except Exception as e:
         rprint(f"[red]An error occurred during automation: {str(e)}[/red]")
+        rprint("[yellow]Detailed error information:[/yellow]")
+        import traceback
+        rprint(traceback.format_exc())
     finally:
         cleanup_phone()
 
 def list_available_phones():
-    """List all available phones."""
-    phones = get_available_phones()
-    if not phones:
-        rprint("[red]No available phones found![/red]")
+    """List all available devices."""
+    devices = get_all_available_devices()
+    if not devices:
+        rprint("[red]No available devices found![/red]")
         return
     
-    display_phones(phones)
+    display_phones(devices)
 
 def disable_phone():
     """Disable a phone from automation."""
@@ -323,10 +380,10 @@ def show_menu():
         clear_screen()
         console.print("[bold blue]Phone Automation Dashboard[/bold blue]")
         console.print("\n[bold]Available Options:[/bold]")
-        console.print("1. Start Automation for All Phones")
-        console.print("2. Start Automation for Specific Phone")
-        console.print("3. List Available Phones")
-        console.print("4. Disable Phone")
+        console.print("1. Start Automation for All Devices")
+        console.print("2. Start Automation for Specific Device")
+        console.print("3. List Available Devices")
+        console.print("4. Disable Device")
         console.print("5. Exit")
         
         choice = Prompt.ask("\nSelect an option", choices=["1", "2", "3", "4", "5"])
