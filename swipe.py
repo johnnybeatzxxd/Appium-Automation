@@ -64,6 +64,122 @@ ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/match_c
 
 MATCH_SCREEN_MINI_COMPOSER_INPUT_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/composerMini_text")
 MATCH_SCREEN_MINI_COMPOSER_SEND_ICON_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/composerMini_icon")
+
+BEST_PHOTO_POPUP_IDENTIFIER_TEXT_LOCATOR = (
+    AppiumBy.XPATH, 
+    "//android.widget.TextView[@text='Put your best photo first']"
+)
+# The "Save and close" button
+BEST_PHOTO_POPUP_SAVE_AND_CLOSE_BUTTON_LOCATOR = (
+    AppiumBy.XPATH, 
+    "//android.widget.Button[@text='Save and close']"
+)
+
+PROFILE_CARD_LOADED_INDICATOR_XPATH = (
+    "//android.widget.FrameLayout[@resource-id='com.bumble.app:id/encountersStackContainer']"
+    "//androidx.compose.ui.platform.ComposeView/android.view.View/android.view.View[1]"
+    "//android.widget.TextView" # Looking for any TextView as a sign of content on the card
+)
+
+NAV_BAR_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/mainApp_navigationTabBar")
+# Bumble logo, typical of the swipe screen
+NAVBAR_LOGO_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/navbar_logo")
+
+def wait_for_profile_to_load(driver, max_retries=5, wait_per_retry_sec=3, load_timeout_sec=5):
+    """
+    Checks if the app is on the Discover/swipe page and appears to be stuck loading profiles.
+    It waits for a profile card indicator to appear.
+
+    Args:
+        driver: The Appium WebDriver instance.
+        max_retries (int): How many times to check for a loaded profile.
+        wait_per_retry_sec (int): How long to sleep between retries.
+        load_timeout_sec (int): How long to wait for the profile card indicator in each attempt.
+
+    Returns:
+        bool: True if a profile eventually loads (or was already loaded), 
+              False if it seems stuck loading after all retries.
+    """
+    rprint("[yellow]Checking if Discover page is loading profiles...[/yellow]")
+
+    for attempt in range(max_retries):
+        try:
+            # 1. First, confirm we are on a page that *should* show profiles (e.g., Discover page)
+            #    by checking for persistent UI elements like the nav bar and logo.
+            WebDriverWait(driver, 2).until(EC.presence_of_element_located(NAV_BAR_LOCATOR))
+            WebDriverWait(driver, 2).until(EC.presence_of_element_located(NAVBAR_LOGO_LOCATOR))
+            # rprint(f"[grey50]Attempt {attempt + 1}/{max_retries}: Discover page elements present.[/grey50]")
+
+            # 2. Now, try to find an indicator that a profile CARD is actually loaded and visible.
+            #    If this is found, loading is complete (or was never stuck).
+            WebDriverWait(driver, load_timeout_sec).until(
+                EC.presence_of_element_located((AppiumBy.XPATH, PROFILE_CARD_LOADED_INDICATOR_XPATH))
+                # Or use your more specific PROFILE_CARD_USER_NAME_LOCATOR if you define it
+            )
+            rprint("[green]Profile card appears to be loaded.[/green]")
+            return True # Profile loaded
+
+        except TimeoutException:
+            # This TimeoutException means either the Discover page elements weren't found (unlikely if called during swiping)
+            # OR the PROFILE_CARD_LOADED_INDICATOR was not found within 'load_timeout_sec'.
+            rprint(f"[orange_red1]Attempt {attempt + 1}/{max_retries}: Profile card not detected within {load_timeout_sec}s. App might be loading or no profiles.[/orange_red1]")
+            if attempt < max_retries - 1:
+                rprint(f"[yellow]Waiting for {wait_per_retry_sec}s before next check...[/yellow]")
+                time.sleep(wait_per_retry_sec)
+            else:
+                rprint(f"[red]Max retries ({max_retries}) reached. Assuming profiles are not loading or none available currently.[/red]")
+                return False # Stuck loading or no profiles after all retries
+        except Exception as e:
+            rprint(f"[red]An unexpected error occurred while checking for profile load: {e}[/red]")
+            return False # Exit on other errors
+
+    return False # Should be covered by the loop's else, but as a fallback.
+
+def handle_best_photo_popup(driver, timeout=3):
+    """
+    Checks for the "Best Photo" feature popup and clicks "Save and close".
+
+    Args:
+        driver: The Appium WebDriver instance.
+        timeout (int): Maximum time to wait for the popup elements.
+
+    Returns:
+        bool: True if the popup was detected and handled, False otherwise.
+    """
+    try:
+        # 1. Check for the presence of the identifying text of the popup.
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located(BEST_PHOTO_POPUP_IDENTIFIER_TEXT_LOCATOR)
+        )
+        rprint("[yellow]'Best Photo' popup detected ('Put your best photo first').[/yellow]")
+
+        # 2. If the popup is detected, find and click the "Save and close" button.
+        save_and_close_button = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable(BEST_PHOTO_POPUP_SAVE_AND_CLOSE_BUTTON_LOCATOR)
+        )
+        
+        action_delay = random.uniform(0.4, 0.8)
+        rprint(f"[yellow]Clicking 'Save and close' button in {action_delay:.2f} seconds...[/yellow]")
+        time.sleep(action_delay)
+        
+        save_and_close_button.click()
+        rprint("[green]Clicked 'Save and close' on the 'Best Photo' popup.[/green]")
+        
+        # Add a pause after clicking to allow the UI to dismiss and settle
+        return True # Popup was handled
+
+    except TimeoutException:
+        # The popup was not found within the timeout period. This is normal.
+        # rprint("[grey50]Debug: 'Best Photo' popup not found.[/grey50]")
+        return False
+    except Exception as e:
+        rprint(f"[red]An error occurred while handling the 'Best Photo' popup: {e}[/red]")
+        # try:
+        #     rprint(f"[grey37]Page source on 'Best Photo' popup error:\n{driver.page_source[:2000]}[/grey37]")
+        # except: pass
+        return False
+
+
 def handle_they_saw_you_premium_popup(driver, timeout=1):
     """
     Checks for the "They saw you, they're into you" Premium upsell popup
@@ -203,10 +319,10 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 rprint("[orange_red1]Send icon found but reported as not enabled. Attempting click anyway.[/orange_red1]")
                 # This might indicate an issue or a slight delay in UI update for enabled state.
 
-            send_icon.click()
+            # send_icon.click()
             rprint("[green]Clicked send icon for 'hi' message.[/green]")
-            message_sent_successfully = True
-            action_taken_on_match_screen = True
+            # message_sent_successfully = True
+            # action_taken_on_match_screen = True
             time.sleep(random.uniform(0.5, 1.0)) # Pause after sending
 
         except TimeoutException:
@@ -628,6 +744,18 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
     while time.time() < end_time:
         # Random delay between profiles (2-3 seconds)
         start_time = time.time()
+
+        current_app = driver.current_package
+        if current_app != "com.bumble.app":
+            rprint("[bold red]The app just closed![/bold red]")
+            return
+
+        if not wait_for_profile_to_load(driver, max_retries=5, wait_per_retry_sec=3, load_timeout_sec=0):
+            rprint("[bold red]Profiles are not loading after multiple checks. Ending swipe attempts for now.[/bold red]")
+            # Decide what to do:
+            # Option 1: End the entire realistic_swipe session
+            return 
+
         if handle_interested_confirmation_popup(driver,0):
             rprint("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
             time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
@@ -671,6 +799,11 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             continue
         
         rprint(f"[grey50]Time taken for second first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+        start_time = time.time()
+        if handle_best_photo_popup(driver, timeout=0):
+            continue
+        rprint(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
 
         start_time = time.time()
         if handle_adjust_filters_prompt(driver,0): # Uses internal timeout

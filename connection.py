@@ -29,6 +29,7 @@ def make_phone_ready(phone_id: str) -> dict:
     
     rprint(f"[yellow]Starting phone {phone_id}...[/yellow]")
     
+    rprint("[yellow]Waiting for phone to start...[/yellow]")
     # Wait for phone to be fully started
     while True:
         status_info = get_phone_status([phone_id])
@@ -49,7 +50,6 @@ def make_phone_ready(phone_id: str) -> dict:
             rprint(f"[red]Phone {phone_id} is not available (status: {phone_status['status']})[/red]")
             return {}
             
-        rprint("[yellow]Waiting for phone to start...[/yellow]")
         time.sleep(3)
     
     # Get ADB information
