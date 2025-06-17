@@ -209,7 +209,13 @@ def get_available_phones() -> list[dict]:
             }
             available_phones.append(phone_info)
     
-    return available_phones
+    # Get ADB info for available phones
+    phone_ids = [phone["id"] for phone in available_phones]
+    adb_info = get_adb_information(phone_ids)
+    
+    # Filter out phones where ADB is not enabled (code 49001)
+    return [phone for phone in available_phones 
+            if not any(adb["id"] == phone["id"] and adb["code"] == 49001 for adb in adb_info)]
 
 def get_phone_status(ids: list[str]) -> dict:
     """
@@ -266,26 +272,10 @@ def get_phone_status(ids: list[str]) -> dict:
         return {}
 
 if __name__ == '__main__':
-    phones_list = get_all_cloud_phones(page=1, page_size=10)
-    print("API Response:")
-    print(json.dumps(phones_list, indent=4))
-
-    phone_ids = [ phone_id.get("id") for phone_id in phones_list ]
-
-    print("Stating the Phones ...")
-    response = start_phone(phone_ids)
-    print(response)
-
-    # adb_infos = get_adb_information(phone_ids)
-    #
-    # while adb_infos["data"]["items"][0]["code"] != 0:
-    #     adb_infos = get_adb_information(phone_ids)
-    #     print("nope")
-    #     time.sleep(2)
-    #
-    print("its ready")
-
-    #print("adb creds",adb_infos)
+    print("Getting available phones (excluding those with ADB not enabled)...")
+    available_phones = get_available_phones()
+    print("\nAvailable phones:")
+    print(json.dumps(available_phones, indent=4))
 
 
 

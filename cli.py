@@ -104,8 +104,16 @@ def setup_appium_driver(connection_info: dict) -> webdriver.Remote:
     
     try:
         driver = webdriver.Remote(APPIUM_SERVER_URL, options=options)
-        time.sleep(5)  # Wait for app to load
-        return driver
+        retry = 0
+        while retry < 3:
+            time.sleep(5)  # Wait for app to load
+            app_name = "com.bumble.app"
+            if driver.current_package != app_name:
+                driver.activate_app(app_name)
+                retry += 1
+                continue
+            return driver
+        return None
     except Exception as e:
         rprint(f"[red]Failed to initialize Appium driver: {str(e)}[/red]")
         return None
@@ -207,7 +215,7 @@ def get_all_available_devices() -> List[Dict]:
     # Combine both lists
     return remote_devices + local_devices
 
-def start_automation_all():
+def start_automation_all(duration=None,probability=None):
     """Start automation for all phones."""
     devices = get_all_available_devices()
     if not devices:
@@ -217,24 +225,96 @@ def start_automation_all():
     display_phones(devices)
     if Confirm.ask("Are you sure you want to start automation for all devices?"):
         automation_type = get_automation_type()
+
+        if automation_type == "swiping":
+            rprint("[yellow]Starting swipe automation...[/yellow]")
+            # Get swipe duration from user
+            if duration is None:
+                duration = Prompt.ask(
+                    "Enter swipe duration in minutes",
+                    default="5",
+                    show_default=True
+                )
+            try:
+                duration = int(duration)
+            except ValueError:
+                duration = 5
+                rprint("[yellow]Invalid duration. Using default of 5 minutes.[/yellow]")
+            
+            # Get right swipe probability
+            if probability is None:
+                probability = Prompt.ask(
+                    "Enter right swipe probability (1-10)",
+                    default="5",
+                    show_default=True
+                )
+            try:
+                probability = int(probability)
+                if not 1 <= probability <= 10:
+                    raise ValueError
+            except ValueError:
+                probability = 5
+                rprint("[yellow]Invalid probability. Using default of 5.[/yellow]")
+
         # TODO: Implement actual automation start function
         rprint(f"[green]Starting {automation_type} automation for all devices...[/green]")
-        rprint("[yellow]This is a placeholder for the actual implementation[/yellow]")
+        for device in devices:
+            device_name = device.get("name")
+            rprint(f"[red]starting {device_name}[/red]")
+            start_automation_specific(automation_type=automation_type,duration=duration,probability=probability,selected_device=device)
 
-def start_automation_specific():
+            rprint("[yellow]This is a placeholder for the actual implementation[/yellow]")
+
+def start_automation_specific(automation_type=None,duration=None,probability=None,selected_device=None):
     """Start automation for a specific device."""
     global connected_phone_id, driver
-    devices = get_all_available_devices()
-    if not devices:
-        rprint("[red]No available devices found![/red]")
-        return
 
-    devices = display_phones(devices)
-    device_numbers = [str(i) for i in range(1, len(devices) + 1)]
-    choice = Prompt.ask("Select device number", choices=device_numbers)
+    if selected_device is None:
+        devices = get_all_available_devices()
+        if not devices:
+            rprint("[red]No available devices found![/red]")
+            return
+
+        devices = display_phones(devices)
+        device_numbers = [str(i) for i in range(1, len(devices) + 1)]
+        choice = Prompt.ask("Select device number", choices=device_numbers)
+        
+        selected_device = devices[int(choice) - 1]
     
-    selected_device = devices[int(choice) - 1]
-    
+    if automation_type is None:
+        automation_type = get_automation_type()
+
+
+    if automation_type == "swiping":
+        rprint("[yellow]Starting swipe automation...[/yellow]")
+        # Get swipe duration from user
+        if duration is None:
+            duration = Prompt.ask(
+                "Enter swipe duration in minutes",
+                default="5",
+                show_default=True
+            )
+        try:
+            duration = int(duration)
+        except ValueError:
+            duration = 5
+            rprint("[yellow]Invalid duration. Using default of 5 minutes.[/yellow]")
+        
+        # Get right swipe probability
+        if probability is None:
+            probability = Prompt.ask(
+                "Enter right swipe probability (1-10)",
+                default="5",
+                show_default=True
+            )
+        try:
+            probability = int(probability)
+            if not 1 <= probability <= 10:
+                raise ValueError
+        except ValueError:
+            probability = 5
+            rprint("[yellow]Invalid probability. Using default of 5.[/yellow]")
+            
     # Kill ADB server before starting the process
     if not manage_adb_server("kill"):
         rprint("[red]Failed to kill ADB server. Cannot proceed.[/red]")
@@ -289,8 +369,6 @@ def start_automation_specific():
     # Store the connected device ID
     connected_phone_id = selected_device['id']
     
-    # Get automation type
-    automation_type = get_automation_type()
     
     try:
         # Set up Appium driver
@@ -303,37 +381,10 @@ def start_automation_specific():
         rprint("[green]Appium driver initialized successfully[/green]")
         
         # Execute the selected automation type
-        if automation_type == "swiping":
-            rprint("[yellow]Starting swipe automation...[/yellow]")
-            # Get swipe duration from user
-            duration = Prompt.ask(
-                "Enter swipe duration in minutes",
-                default="5",
-                show_default=True
-            )
-            try:
-                duration = int(duration)
-            except ValueError:
-                duration = 5
-                rprint("[yellow]Invalid duration. Using default of 5 minutes.[/yellow]")
-            
-            # Get right swipe probability
-            probability = Prompt.ask(
-                "Enter right swipe probability (1-10)",
-                default="5",
-                show_default=True
-            )
-            try:
-                probability = int(probability)
-                if not 1 <= probability <= 10:
-                    raise ValueError
-            except ValueError:
-                probability = 5
-                rprint("[yellow]Invalid probability. Using default of 5.[/yellow]")
-            
             # Start the swipe automation
+
+        if automation_type == "swiping":
             realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration)
-            
         elif automation_type == "handle_matches":
             rprint("[yellow]Handle matches automation not implemented yet[/yellow]")
         elif automation_type == "auto":
