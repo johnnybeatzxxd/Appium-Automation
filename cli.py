@@ -28,7 +28,6 @@ connected_phone_id = None
 driver = None
 
 def start_appium_server():
-    # Start the Appium server
     appium_process = subprocess.Popen(
         ["appium"],
         stdout=subprocess.PIPE,
@@ -38,29 +37,38 @@ def start_appium_server():
     )
 
     server_url = None
+    port_in_use = False
 
     def read_output():
-        nonlocal server_url
+        nonlocal server_url, port_in_use
         for line in appium_process.stdout:
             print(line.strip())  # Optional: log Appium output
-            # Look for URL line
+
+            # Check if port is already in use
+            if "EADDRINUSE" in line or "address already in use" in line:
+                port_in_use = True
+                break
+
+            # Try to detect URL
             match = re.search(r'http://127\.0\.0\.1:\d+', line)
             if match:
                 server_url = match.group(0)
                 break
 
-    # Start a thread to read output without blocking
     reader_thread = threading.Thread(target=read_output)
     reader_thread.start()
-
-    # Wait for the output thread to get the URL or timeout
     reader_thread.join(timeout=10)
 
-    if not server_url:
-        appium_process.terminate()
-        raise RuntimeError("Failed to detect Appium server URL from output.")
+    if server_url:
+        return appium_process, server_url
 
-    return appium_process, server_url
+    if port_in_use:
+        print("[Info] Appium server is already running. Using default URL: http://127.0.0.1:4723")
+        return None, "http://127.0.0.1:4723"
+
+    # Couldn't find URL and no port-in-use error — real issue
+    appium_process.terminate()
+    raise RuntimeError("Failed to detect Appium server URL from output.")
 
 def get_device_info(connection_address: str) -> Tuple[str, str]:
     """
@@ -187,8 +195,9 @@ def cleanup_phone():
     manage_adb_server("kill")
 
     global appium_process
-    appium_process.terminate()
-    rprint("[red]Appium server terminated.[/red]")
+    if appium_process:
+        appium_process.terminate()
+        rprint("[red]Appium server terminated.[/red]")
 
 def signal_handler(signum, frame):
     """Handle interruption signals."""
