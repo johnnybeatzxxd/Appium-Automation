@@ -750,11 +750,6 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             rprint("[bold red]The app just closed![/bold red]")
             return
 
-        if not wait_for_profile_to_load(driver, max_retries=5, wait_per_retry_sec=3, load_timeout_sec=0):
-            rprint("[bold red]Profiles are not loading after multiple checks. Ending swipe attempts for now.[/bold red]")
-            # Decide what to do:
-            # Option 1: End the entire realistic_swipe session
-            return 
 
         if handle_interested_confirmation_popup(driver,0):
             rprint("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
@@ -826,6 +821,11 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
         
         rprint(f"[grey50]Time taken for critical popup check: {time.time() - start_time:.3f} seconds[/grey50]")
 
+        if not wait_for_profile_to_load(driver, max_retries=5, wait_per_retry_sec=3, load_timeout_sec=0):
+            rprint("[bold red]Profiles are not loading after multiple checks. Ending swipe attempts for now.[/bold red]")
+            # Decide what to do:
+            # Option 1: End the entire realistic_swipe session
+            return 
         # time.sleep(random.uniform(0, 2))
         
         # 60% chance to check profile details

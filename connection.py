@@ -98,7 +98,7 @@ def connect_to_phone(phone_id: str) -> dict:
     while retry_count < max_retries:
         try:
             # Connect to the phone
-            rprint(f"\n[yellow]Connecting to {connection_address}... (Attempt {retry_count + 1}/{max_retries})[/yellow]")
+            rprint(f"[yellow]Connecting to {connection_address}... (Attempt {retry_count + 1}/{max_retries})[/yellow]")
             connect_cmd = ["adb", "connect", connection_address]
             connect_result = subprocess.run(connect_cmd, capture_output=True, text=True)
             
@@ -117,7 +117,7 @@ def connect_to_phone(phone_id: str) -> dict:
                     rprint(f"[red]Failed to login: {login_result.stderr}[/red]")
                     return {}
             else:
-                rprint(f"[red]Failed to connect: {connect_result.stdout}[/red]")
+                rprint(f"[red]Failed to connect: {connect_result.stdout.rstrip()}[/red]")
                 retry_count += 1
                 if retry_count < max_retries:
                     rprint(f"[yellow]Retrying in 3 seconds...[/yellow]")

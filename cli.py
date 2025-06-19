@@ -4,6 +4,7 @@ import sys
 import time
 import subprocess
 import re
+import threading
 from typing import List, Dict, Tuple
 from rich.console import Console
 from rich.table import Table
@@ -13,15 +14,53 @@ from geelark_api import get_available_phones, stop_phone
 from connection import connect_to_phone
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
+from helper import open_page
 from swipe import realistic_swipe
+from chat import process_new_matches
 from adb import get_local_devices
 
 # Initialize rich console for better formatting
 console = Console()
 
 # Global variables
+appium_process = None
 connected_phone_id = None
 driver = None
+
+def start_appium_server():
+    # Start the Appium server
+    appium_process = subprocess.Popen(
+        ["appium"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
+
+    server_url = None
+
+    def read_output():
+        nonlocal server_url
+        for line in appium_process.stdout:
+            print(line.strip())  # Optional: log Appium output
+            # Look for URL line
+            match = re.search(r'http://127\.0\.0\.1:\d+', line)
+            if match:
+                server_url = match.group(0)
+                break
+
+    # Start a thread to read output without blocking
+    reader_thread = threading.Thread(target=read_output)
+    reader_thread.start()
+
+    # Wait for the output thread to get the URL or timeout
+    reader_thread.join(timeout=10)
+
+    if not server_url:
+        appium_process.terminate()
+        raise RuntimeError("Failed to detect Appium server URL from output.")
+
+    return appium_process, server_url
 
 def get_device_info(connection_address: str) -> Tuple[str, str]:
     """
@@ -78,12 +117,13 @@ def manage_adb_server(action: str = "kill") -> bool:
         rprint(f"[red]Error managing ADB server: {str(e)}[/red]")
         return False
 
-def setup_appium_driver(connection_info: dict) -> webdriver.Remote:
+def setup_appium_driver(connection_info: dict,server_url:str) -> webdriver.Remote:
     """Set up and return an Appium WebDriver instance."""
     # Get device information
     connection_address = f"{connection_info['ip']}:{connection_info['port']}"
     platform_version, device_name = get_device_info(connection_address)
     
+    rprint(f"[yellow]Appium server url: {server_url}[/yellow]")
     rprint(f"[yellow]Device platform version: {platform_version}[/yellow]")
     rprint(f"[yellow]Using device: {device_name}[/yellow]")
     
@@ -100,13 +140,13 @@ def setup_appium_driver(connection_info: dict) -> webdriver.Remote:
     options.auto_grant_permissions = True
     options.adb_exec_timeout = 60000
     
-    APPIUM_SERVER_URL = "http://127.0.0.1:4723"
+    APPIUM_SERVER_URL = server_url
     
     try:
         driver = webdriver.Remote(APPIUM_SERVER_URL, options=options)
         retry = 0
         while retry < 3:
-            time.sleep(5)  # Wait for app to load
+            time.sleep(1)  # Wait for app to load
             app_name = "com.bumble.app"
             if driver.current_package != app_name:
                 driver.activate_app(app_name)
@@ -146,10 +186,15 @@ def cleanup_phone():
     # Kill ADB server after cleanup
     manage_adb_server("kill")
 
+    global appium_process
+    appium_process.terminate()
+    rprint("[red]Appium server terminated.[/red]")
+
 def signal_handler(signum, frame):
     """Handle interruption signals."""
     rprint("\n[yellow]Interruption detected. Cleaning up...[/yellow]")
     cleanup_phone()
+
     sys.exit(0)
 
 # Register signal handlers
@@ -372,8 +417,11 @@ def start_automation_specific(automation_type=None,duration=None,probability=Non
     
     try:
         # Set up Appium driver
+        rprint("[yellow]Starting Appium server...[/yellow]")
+        global appium_process
+        appium_process, server_url = start_appium_server()
         rprint("[yellow]Initializing Appium driver...[/yellow]")
-        driver = setup_appium_driver(connection_info)
+        driver = setup_appium_driver(connection_info,server_url)
         if not driver:
             rprint("[red]Failed to initialize Appium driver. Stopping automation.[/red]")
             return
@@ -386,7 +434,10 @@ def start_automation_specific(automation_type=None,duration=None,probability=Non
         if automation_type == "swiping":
             realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration)
         elif automation_type == "handle_matches":
-            rprint("[yellow]Handle matches automation not implemented yet[/yellow]")
+            if open_page(driver, "Chats"): 
+                print("Successfully navigated to Chats page.")
+                process_new_matches(driver,2)
+                print("Finished chat processing phase.")
         elif automation_type == "auto":
             rprint("[yellow]Auto automation not implemented yet[/yellow]")
             

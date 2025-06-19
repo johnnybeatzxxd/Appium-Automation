@@ -39,7 +39,7 @@ try:
     #     realistic_swipe(driver,1)
     print("\n--- Attempting Chat Processing Phase ---")
     if open_page(driver, "Chats"): 
-        print("Successfully navigated to Peoples page.")
+        print("Successfully navigated to Chats page.")
         chat.process_new_matches(driver)
         print("Finished chat processing phase.")
     #
