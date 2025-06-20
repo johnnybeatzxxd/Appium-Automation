@@ -729,8 +729,8 @@ def horizontal_swipe(driver, swipe_right=True):
     
     swipe_dir = "RIGHT" if swipe_right else "LEFT"
     rprint(f"[grey50]Horizontal swipe {swipe_dir} performed (duration: ~{duration_ms}ms).[/grey50]")
-    time.sleep(random.uniform(0.1, 0.3)) # Reduced pause after swipe from 0.2-0.6 to 0.1-0.3
-def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
+    time.sleep(random.uniform(0.1, 0.3)) # Reduced pause after swipe from 0.2-0.6 to 0.1-0.3ndle 
+5ef realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
     """
     Perform realistic swipes on Bumble with profile checking behavior.
     

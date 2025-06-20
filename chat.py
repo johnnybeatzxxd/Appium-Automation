@@ -39,6 +39,8 @@ CHAT_HEADER_BACK_BUTTON_LOCATOR = (AppiumBy.XPATH, "//android.widget.ImageButton
 
 SPOTLIGHT_PROMO_TEXT_LOCATOR = (AppiumBy.XPATH, "//*[contains(@text, 'Spotlight is the easiest way')]")
 OPENING_MOVES_SETUP_PROMO_TEXT_LOCATOR = (AppiumBy.XPATH, "//*[contains(@text, 'Get to good conversation, faster')]")
+
+CHAT_24_HOURS_BANNER_TEXT_LOCATOR = (AppiumBy.XPATH, "//android.widget.TextView[contains(@text, 'hours to reply')]")
 # --- Helper Functions ---
 
 def is_on_chats_list_page(driver, timeout=7):
@@ -46,7 +48,7 @@ def is_on_chats_list_page(driver, timeout=7):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(YOUR_MATCHES_TITLE_LOCATOR)
         )
-        WebDriverWait(driver, 1).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(MAIN_CHAT_LIST_RV_LOCATOR)
         )
         rprint("[green]✓[/green] Verified on Chats list page")
@@ -120,10 +122,10 @@ def send_opening_message(driver, match_name):
         # Select a random message
         first_name = match_name.split(',')[0].split(' ')[0] # Get first name
         messages = [
-            f"Hey {first_name}! How's your day going? 😊",
-            f"Hi {first_name}! Nice to match with you. What are you up to?",
-            f"Hello {first_name}! 👋 Hope you're having a good one.",
-            f"Hey {first_name}, pleasure to connect!",
+            f"hi {first_name}, pleasure to connect!",
+            f"Hey {first_name}",
+            f"Hi",
+            f"Hey how are you?",
         ]
         message_to_send = random.choice(messages)
 
@@ -151,7 +153,7 @@ def send_opening_message(driver, match_name):
             send_button = WebDriverWait(driver, 7).until(
                 EC.element_to_be_clickable(CHAT_SEND_BUTTON_LOCATOR) # Using the new ID-based locator
             )
-            # send_button.click()
+            send_button.click()
             rprint("[green]✓[/green] Message SENT.")
         except TimeoutException:
             rprint("[red]✗[/red] Send button (ID: com.bumble.app:id/chatInput_button_send) not found or not clickable after typing.")
@@ -170,158 +172,317 @@ def send_opening_message(driver, match_name):
         traceback.print_exc()
         return False
 
-def navigate_back_to_chats_list(driver, num_back_presses=3):
-    rprint(f"[blue]→[/blue] Navigating back: {num_back_presses} back presses")
-    for i in range(num_back_presses):
-        driver.back()
-        delay = random.uniform(0.3, 0.7) if i < num_back_presses - 1 else random.uniform(1.0, 1.5)
-        rprint(f"[blue]→[/blue] Back press #{i+1}, pausing for {delay:.2f}s")
-        time.sleep(delay)
+def navigate_back_to_chats_list(driver, initial_back_presses=2, extra_back_press_if_needed=1):
+    """
+    Attempts to navigate back to the main chats list page.
+    Performs initial back presses, then checks if still in a chat-like screen.
+    If so, performs extra back presses before final verification.
+    """
+    total_presses_made = 0
+    rprint(f"[blue]→[/blue] Navigating back to Chats list...")
 
+    # Perform initial back presses
+    for i in range(initial_back_presses):
+        rprint(f"[blue]→[/blue] Performing back press #{total_presses_made + 1}...")
+        driver.back()
+        total_presses_made += 1
+        # Shorter delay between these initial back presses
+        time.sleep(random.uniform(0.5, 1.0))
+        
+        # Optional: Check if already on chats list after each press to exit early
+        if is_on_chats_list_page(driver, timeout=1):
+            rprint(f"[green]✓[/green] Returned to Chats list page after {total_presses_made} back press(es).")
+            return True
+
+    rprint(f"[blue]→[/blue] Performed {total_presses_made} initial back press(es). Checking current screen...")
+
+    # Check if still on a chat-like screen (e.g., regular chat, "24 hours" banner visible)
+    # We can use is_on_individual_chat_page or a more specific check for the banner
+    still_on_chat_screen = False
+    try:
+        # Check for the "24 hours to reply" banner as a strong indicator
+        WebDriverWait(driver, 2).until(
+            EC.presence_of_element_located(CHAT_24_HOURS_BANNER_TEXT_LOCATOR)
+        )
+        rprint("[yellow]⚠[/yellow] '24 hours to reply' banner still visible after initial back presses.")
+        still_on_chat_screen = True
+    except TimeoutException:
+        # If banner not found, check if it's still on a generic individual chat page
+        if is_on_individual_chat_page(driver, timeout=2): # Short timeout for this check
+            rprint("[yellow]⚠[/yellow] Still on an individual chat page (input field found) after initial back presses.")
+            still_on_chat_screen = True
+
+    if still_on_chat_screen:
+        rprint(f"[blue]→[/blue] Still on a chat-related screen. Performing {extra_back_press_if_needed} extra back press(es)...")
+        for i in range(extra_back_press_if_needed):
+            rprint(f"[blue]→[/blue] Performing extra back press #{i + 1} (total {total_presses_made + 1})...")
+            driver.back()
+            total_presses_made += 1
+            time.sleep(random.uniform(0.8, 1.5)) # Longer pause after extra back presses
+            
+            if is_on_chats_list_page(driver, timeout=1):
+                rprint(f"[green]✓[/green] Returned to Chats list page after {total_presses_made} total back press(es).")
+                return True
+    
+    # Final verification: Are we on the chats list page?
+    rprint(f"[blue]→[/blue] Total {total_presses_made} back press(es) performed. Final check for Chats list page...")
     if is_on_chats_list_page(driver, timeout=5):
-        rprint("[green]✓[/green] Successfully returned to Chats list page")
+        rprint("[green]✓[/green] Successfully returned to Chats list page.")
         return True
     else:
-        if open_page(driver,"Chats"):
-            return True
+        # Last resort: try to use the open_page function if direct back presses failed
+        rprint("[yellow]⚠[/yellow] Back presses did not land on Chats list. Attempting direct navigation via open_page('Chats')...")
+        # Assuming open_page is imported from your helper module
+        # from helper import open_page
+        if 'open_page' in globals() and callable(globals()['open_page']): # Check if open_page is available
+            if open_page(driver, "Chats"): # Ensure "Chats" is the correct content-desc for the tab
+                rprint("[green]✓[/green] Successfully navigated to Chats page using open_page.")
+                return True
+            else:
+                rprint("[red]✗[/red] Failed to return to Chats list page even with open_page.")
+                return False
         else:
-            rprint("[red]✗[/red] Failed to return to Chats list page")
+            rprint("[red]✗[/red] Failed to return to Chats list page. (open_page function not available for fallback).")
             return False
+
+def get_screen_dimensions(driver):
+    """Gets the current screen width and height."""
+    try:
+        window_size = driver.get_window_size()
+        width = window_size.get('width')
+        height = window_size.get('height')
+        if width is None or height is None:
+            rprint("[yellow]⚠[/yellow] Could not get window dimensions, using defaults.")
+            return 1080, 1920 # Example defaults
+        return int(width), int(height)
+    except Exception as e:
+        rprint(f"[red]✗[/red] Error getting screen dimensions: {e}")
+        return 1080, 1920 # Fallback
+
+def perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction="left"):
+    """
+    Performs a horizontal scroll/swipe on the provided RecyclerView element
+    with random distance and specified or random direction.
+
+    Args:
+        driver: The Appium WebDriver instance.
+        matches_rv_element: The WebElement of the RecyclerView to scroll.
+        preferred_direction (str): "left" (reveals items to the right), 
+                                   "right" (reveals items to the left), or
+                                   "random".
+    Returns:
+        bool: True if scroll was attempted, False on critical error.
+    """
+    screen_width, screen_height = get_screen_dimensions(driver)
+    if not screen_width or not screen_height:
+        rprint("[red]✗[/red] Cannot perform scroll, screen dimensions unknown.")
+        return False
+
+    try:
+        location = matches_rv_element.location
+        size = matches_rv_element.size
+
+        # Element's y-center for the swipe
+        element_y_center = location['y'] + size['height'] // 2
+        element_y_center = max(0, min(element_y_center, screen_height -1)) # Ensure within screen
+
+        # Determine actual scroll direction
+        scroll_direction = preferred_direction
+        if preferred_direction == "random":
+            scroll_direction = random.choice(["left", "right"])
+
+        # Randomize swipe distance (percentage of the element's width)
+        # Make it significant to ensure a scroll occurs. E.g., 40% to 70% of element width.
+        swipe_distance_percentage = random.uniform(0.40, 0.70)
+        swipe_pixel_distance = int(size['width'] * swipe_distance_percentage)
+        
+        # Define swipe start and end points based on direction
+        if scroll_direction == "left": # Swipe from Right-to-Left (reveals items on the Right)
+            # Start near the right edge of the element, end near the left
+            start_x = location['x'] + int(size['width'] * random.uniform(0.75, 0.85)) # e.g., 80%
+            end_x = start_x - swipe_pixel_distance
+            rprint(f"[grey50]Attempting to scroll content LEFT (revealing right items)[/grey50]")
+        elif scroll_direction == "right": # Swipe from Left-to-Right (reveals items on the Left)
+            # Start near the left edge of the element, end near the right
+            start_x = location['x'] + int(size['width'] * random.uniform(0.15, 0.25)) # e.g., 20%
+            end_x = start_x + swipe_pixel_distance
+            rprint(f"[grey50]Attempting to scroll content RIGHT (revealing left items)[/grey50]")
+        else:
+            rprint(f"[yellow]⚠[/yellow] Unknown scroll direction '{scroll_direction}', defaulting to scroll left.")
+            start_x = location['x'] + int(size['width'] * 0.8)
+            end_x = start_x - swipe_pixel_distance # Default to scroll left
+
+
+        # Ensure coordinates are within the element's horizontal bounds (and screen bounds)
+        element_left_x = location['x']
+        element_right_x = location['x'] + size['width']
+
+        start_x = max(element_left_x + 5, min(start_x, element_right_x - 5)) # Add small buffer
+        start_x = max(0, min(start_x, screen_width - 5)) # Screen bounds
+        
+        end_x = max(element_left_x + 5, min(end_x, element_right_x - 5))
+        end_x = max(0, min(end_x, screen_width - 5))
+
+
+        # If element is too narrow or swipe distance is too small, it might not scroll
+        if abs(start_x - end_x) < int(screen_width * 0.1): # Less than 10% of screen width is too small
+            rprint(f"[yellow]⚠[/yellow] Calculated swipe distance ({abs(start_x - end_x)}px) might be too small for a reliable scroll. Element width: {size['width']}.")
+            # Could potentially abort or try a screen-based swipe as a fallback here if needed.
+            # For now, we proceed with the calculated small swipe.
+
+        duration_ms = random.randint(300, 600) # Randomize duration
+        
+        rprint(f"[grey50]Scrolling matches list: from ({start_x},{element_y_center}) to ({end_x},{element_y_center}), duration: ~{duration_ms}ms[/grey50]")
+        
+        # Using driver.swipe for simplicity, can be replaced with ActionChains if more control is needed
+        driver.swipe(start_x, element_y_center, end_x, element_y_center, duration_ms)
+        
+        time.sleep(random.uniform(1.0, 2.0)) # Wait for scroll to complete and UI to settle
+        return True
+    except Exception as e:
+        rprint(f"[red]✗[/red] Error during horizontal scroll on matches list: {e}")
+        return False
 
 
 # --- Main Processing Logic ---
-def process_new_matches(driver, max_total_matches_to_process_this_run=10, process_percentage_of_new_found=0.9):
+def process_new_matches(driver, 
+                        max_total_matches_to_process_this_run=None, 
+                        max_consecutive_empty_scrolls=3):
     """
-    Randomly selects and processes a percentage of new matches from the "Your matches" list.
+    Scrolls the "Your matches" list with random distance/direction, 
+    randomly picks new, non-expired matches, and processes them.
+    If all visible items are expired, it tries to scroll left (reveals items from the left).
 
     Args:
         driver: The Appium WebDriver instance.
         max_total_matches_to_process_this_run (int, optional): 
-            Absolute maximum number of matches to process in this entire call to process_new_matches.
-            Helps to limit overall activity if many new matches are found.
-        process_percentage_of_new_found (float, optional): 
-            The approximate percentage (0.0 to 1.0) of newly found, unattempted matches
-            to process in each pass of checking the "Your matches" list.
-            Default is 0.7 (70%).
+            Absolute maximum number of matches to process in this entire call.
+        max_consecutive_empty_scrolls (int, optional):
+            How many consecutive scrolls to attempt that yield no new processable matches
+            before giving up on scrolling further.
     """
-    if not is_on_chats_list_page(driver): # Initial check
-        rprint("[red]✗[/red] Not starting on Chats list page. Aborting match processing")
+    if not is_on_chats_list_page(driver):
+        rprint("[red]✗[/red] Not starting on Chats list page. Aborting match processing.")
         return
 
-    rprint(f"[blue]→[/blue] Starting to process new matches. Aiming for ~{process_percentage_of_new_found*100:.0f}% of new finds.")
+    rprint(f"[blue]→[/blue] Starting to process new matches by scrolling and random picking.")
     if max_total_matches_to_process_this_run is not None:
         rprint(f"[blue]→[/blue] Overall limit for this run: {max_total_matches_to_process_this_run} matches.")
 
     grand_total_processed_this_run = 0
-    attempted_matches_content_descs_session = set() # Keep track of all attempted in this entire session/call
-
-    # We might loop a few times if the "Your matches" list is dynamic or to pick in batches
-    # but we won't loop indefinitely if no new matches are found.
-    # Let's limit the number of times we re-scan the "Your matches" list to avoid getting stuck.
-    max_list_scan_attempts = 3 
+    attempted_matches_content_descs_session = set()
+    consecutive_empty_or_all_expired_scrolls = 0
     
-    for scan_attempt in range(max_list_scan_attempts):
+    max_overall_iterations = 25 # Safety break for the entire process
+    
+    for iteration_num in range(max_overall_iterations):
+        rprint(f"\n[cyan]--- Processing Iteration #{iteration_num + 1} ---[/cyan]")
+        
         if max_total_matches_to_process_this_run is not None and \
            grand_total_processed_this_run >= max_total_matches_to_process_this_run:
-            rprint(f"[yellow]ℹ[/yellow] Reached overall limit of {max_total_matches_to_process_this_run} matches processed for this run.")
+            rprint(f"[yellow]ℹ[/yellow] Reached overall limit of {max_total_matches_to_process_this_run} matches processed.")
             break
 
-        if not is_on_chats_list_page(driver, timeout=3): # Re-check current page
-            rprint("[red]✗[/red] No longer on Chats list page during processing. Aborting.")
+        if not is_on_chats_list_page(driver, timeout=3):
+            rprint("[red]✗[/red] No longer on Chats list page. Aborting.")
             break
         
-        rprint(f"\n[cyan]--- Scan attempt #{scan_attempt + 1} for new matches ---[/cyan]")
+        # (Your general promo checks like Spotlight, Opening Moves Setup can go here if they replace the whole matches list)
+        # ...
 
-        # --- Check for Ads/Promos first ---
-        promo_detected_this_scan = False
         try:
-            WebDriverWait(driver, 1).until(EC.presence_of_element_located(SPOTLIGHT_PROMO_TEXT_LOCATOR))
-            rprint("[yellow]ℹ[/yellow] Spotlight promo detected in 'Your matches' area.")
-            promo_detected_this_scan = True
-        except TimeoutException: pass
-        if not promo_detected_this_scan:
-            try:
-                WebDriverWait(driver, 1).until(EC.presence_of_element_located(OPENING_MOVES_SETUP_PROMO_TEXT_LOCATOR))
-                rprint("[yellow]ℹ[/yellow] 'Opening Moves setup' promo detected.")
-                promo_detected_this_scan = True
-            except TimeoutException: pass
-        
-        if promo_detected_this_scan:
-            rprint("[yellow]ℹ[/yellow] Ad/Promo found where new matches usually are. Ending current scan.")
-            # If a promo is consistently there, further scans might not yield new matches in this section.
-            break 
-
-        # --- Get actual match items ---
-        try:
-            matches_rv = WebDriverWait(driver, 7).until(
+            matches_rv_element = WebDriverWait(driver, 7).until(
                 EC.presence_of_element_located(YOUR_MATCHES_RV_LOCATOR)
             )
-            all_match_buttons_on_screen = matches_rv.find_elements(AppiumBy.XPATH, MATCH_ITEM_BUTTON_XPATH)
+            all_items_in_rv_view = matches_rv_element.find_elements(AppiumBy.XPATH, MATCH_ITEM_BUTTON_XPATH)
 
-            if not all_match_buttons_on_screen:
-                rprint("[yellow]ℹ[/yellow] No match items found in 'Your matches' list during this scan.")
-                # If no matches found in the first scan attempt, likely no new matches.
-                # If in subsequent scans, it means we processed all available from previous.
-                break 
+            if not all_items_in_rv_view:
+                rprint("[yellow]ℹ[/yellow] No items at all in 'Your matches' RecyclerView view this iteration.")
+                consecutive_empty_or_all_expired_scrolls +=1 
+                if consecutive_empty_or_all_expired_scrolls >= max_consecutive_empty_scrolls:
+                    rprint(f"[yellow]⚠[/yellow] No items found for {max_consecutive_empty_scrolls} checks. Stopping.")
+                    break
+                if not perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction="random"): break
+                continue 
 
-            # Filter out already attempted matches in this entire session
-            new_unattempted_matches = []
-            for btn in all_match_buttons_on_screen:
+            new_active_processable_matches = []
+            count_visible_expired_matches = 0
+            count_total_visible_user_cards = 0 # Count actual user cards (not Beeline)
+
+            for btn in all_items_in_rv_view:
                 try:
-                    if not btn.is_displayed(): continue # Skip non-visible elements
+                    if not btn.is_displayed(): continue
                     desc = btn.get_attribute('content-desc')
+                    res_id = btn.get_attribute('resource-id')
+
+                    is_beeline_card = (res_id == "com.bumble.app:id/connectionItemBeeline_cards") or \
+                                      (desc and (desc.strip().isdigit() or (desc.strip().endswith('+') and desc.strip()[:-1].isdigit())))
+                    
+                    if is_beeline_card:
+                        rprint(f"[grey50]DEBUG: Skipping Beeline card ('{desc}').[/grey50]")
+                        if desc: attempted_matches_content_descs_session.add(desc + "_BEELINE_SKIPPED")
+                        continue
+                    
+                    # If not Beeline, it's a user card (either active or expired)
+                    count_total_visible_user_cards += 1
+                    is_expired_match = desc and "expired" in desc.lower()
+
+                    if is_expired_match:
+                        rprint(f"[grey50]DEBUG: Found expired match ('{desc}').[/grey50]")
+                        count_visible_expired_matches += 1
+                        if desc: attempted_matches_content_descs_session.add(desc + "_EXPIRED_SKIPPED")
+                        continue 
+                    
                     if desc and desc not in attempted_matches_content_descs_session:
-                        new_unattempted_matches.append({'element': btn, 'desc': desc})
+                        new_active_processable_matches.append({'element': btn, 'desc': desc})
                 except StaleElementReferenceException:
-                    rprint("[yellow]⚠[/yellow] Stale element while collecting new matches. Will retry scan if possible.")
-                    # Force a re-scan by breaking this inner loop and letting outer loop continue if attempts left
-                    new_unattempted_matches = "RETRY_SCAN" 
+                    rprint("[yellow]⚠[/yellow] Stale element while filtering. Will retry iteration/scroll.")
+                    new_active_processable_matches = "RETRY_ITERATION" 
                     break 
             
-            if new_unattempted_matches == "RETRY_SCAN":
+            if new_active_processable_matches == "RETRY_ITERATION":
                 time.sleep(0.5)
-                continue # To the next scan_attempt
+                # Optionally scroll before retrying iteration to refresh view
+                # perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction="random")
+                continue
 
-            if not new_unattempted_matches:
-                rprint("[yellow]ℹ[/yellow] No NEW, unattempted matches found in 'Your matches' list this scan.")
-                # TODO: Could implement horizontal scroll here if `all_match_buttons_on_screen` was full but all were attempted
-                break # No new matches to process in this scan
+            # --- Logic after filtering visible items ---
+            match_to_process_this_iteration = None
+            scroll_direction_for_next = "random" # Default next scroll direction
 
-            rprint(f"[blue]→[/blue] Found {len(new_unattempted_matches)} new, unattempted match(es) on screen.")
+            if new_active_processable_matches:
+                rprint(f"[blue]→[/blue] Found {len(new_active_processable_matches)} new, active, processable match(es) in current view.")
+                consecutive_empty_or_all_expired_scrolls = 0 # Reset counter
 
-            # Randomly select a portion of these new matches to process
-            num_to_select = max(1, int(len(new_unattempted_matches) * process_percentage_of_new_found))
-            if max_total_matches_to_process_this_run is not None: # Adhere to overall limit
-                remaining_allowed_overall = max_total_matches_to_process_this_run - grand_total_processed_this_run
-                num_to_select = min(num_to_select, remaining_allowed_overall)
+                match_to_process_this_iteration = random.choice(new_active_processable_matches)
+            
+            elif count_total_visible_user_cards > 0 and count_visible_expired_matches == count_total_visible_user_cards:
+                # All visible user cards are expired
+                rprint("[yellow]ℹ[/yellow] All currently visible user matches are expired.")
+                consecutive_empty_or_all_expired_scrolls += 1 # Count this state
+                scroll_direction_for_next = "right" # Force scroll left (to reveal from left)
+                rprint(f"[blue]→[/blue] Forcing scroll RIGHT (to reveal left items) as all visible are expired.")
+            
+            else: # No new active, and not all are expired (could be empty or all previously attempted)
+                rprint("[yellow]ℹ[/yellow] No NEW, ACTIVE, processable matches in current view (might be empty or all attempted/expired).")
+                consecutive_empty_or_all_expired_scrolls += 1
 
-            if num_to_select <= 0 :
-                 rprint("[yellow]ℹ[/yellow] No more matches to process based on limits or percentage.")
-                 break
 
-
-            matches_to_process_this_pass = random.sample(new_unattempted_matches, min(num_to_select, len(new_unattempted_matches)))
-            rprint(f"[blue]→[/blue] Randomly selected {len(matches_to_process_this_pass)} match(es) to process this pass.")
-
-            for match_info in matches_to_process_this_pass:
-                current_match_element_to_click = match_info['element']
-                current_match_desc = match_info['desc']
-
-                # Mark as attempted for the entire session
+            # --- Process the chosen match (if any) ---
+            if match_to_process_this_iteration:
+                current_match_element_to_click = match_to_process_this_iteration['element']
+                current_match_desc = match_to_process_this_iteration['desc']
                 attempted_matches_content_descs_session.add(current_match_desc)
                 
                 rprint(f"\n[magenta]--- Processing selected match: {current_match_desc} ---[/magenta]")
                 try:
                     current_match_element_to_click.click()
-                except StaleElementReferenceException:
-                    rprint(f"[red]✗[/red] Stale element when trying to click {current_match_desc}. Skipping this one.")
-                    continue # Skip to next selected match
                 except Exception as click_err:
                     rprint(f"[red]✗[/red] Error clicking match {current_match_desc}: {click_err}. Skipping.")
-                    continue
+                    # No scroll here, let the main scroll logic at the end of loop handle it
+                    continue # To next iteration of main while loop
 
                 time.sleep(random.uniform(1.5, 2.5)) 
-
                 user_name_for_chat_verification = current_match_desc
 
                 if handle_opening_move_screen(driver):
@@ -334,45 +495,65 @@ def process_new_matches(driver, max_total_matches_to_process_this_run=10, proces
                     else:
                         rprint(f"[red]✗[/red] Failed to send message to {current_match_desc}")
 
-                    if not navigate_back_to_chats_list(driver): # Uses 3 back presses by default
+                    if not navigate_back_to_chats_list(driver):
                         rprint("[red]✗[/red] Critical: Failed to navigate back after chat. Ending run.")
-                        return # Exit entirely if navigation back fails
+                        return 
                 else:
                     rprint(f"[red]✗[/red] Did not land on individual chat page for {current_match_desc}.")
                     if not navigate_back_to_chats_list(driver):
-                        rprint("[red]✗[/red] Critical: Failed to navigate back after failed chat entry. Ending run.")
+                        rprint("[red]✗[/red] Critical: Failed to navigate back. Ending run.")
                         return
                 
-                time.sleep(random.uniform(1.0, 2.0)) # Pause between processing selected matches
+                time.sleep(random.uniform(0.5, 1.5)) 
+            
+            # --- End of processing a match ---
 
-                if max_total_matches_to_process_this_run is not None and \
-                   grand_total_processed_this_run >= max_total_matches_to_process_this_run:
-                    break # Break from processing this pass's matches if overall limit hit
+            # Check stopping condition based on consecutive empty/all_expired scrolls
+            if consecutive_empty_or_all_expired_scrolls >= max_consecutive_empty_scrolls:
+                rprint(f"[yellow]⚠[/yellow] Reached {max_consecutive_empty_scrolls} consecutive views with no new active matches. Stopping exploration.")
+                break
+            
+            rprint(f"[blue]→[/blue] Performing horizontal scroll (direction: {scroll_direction_for_next})...")
+            if not perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction=scroll_direction_for_next):
+                rprint("[red]✗[/red] Failed to scroll, cannot continue finding matches.")
+                break
+            
+            # Your specific stopping condition: "until there is less than 4 items visible on the screen"
+            # After the scroll, the loop will re-evaluate. If you want an immediate check after scroll:
+            time.sleep(0.5) # Give a moment for UI to potentially update after scroll
+            current_items_after_scroll = matches_rv_element.find_elements(AppiumBy.XPATH, MATCH_ITEM_BUTTON_XPATH)
+            visible_active_non_promo_count = 0
+            for btn_as in current_items_after_scroll: # Re-filter
+                try:
+                    if not btn_as.is_displayed(): continue
+                    desc_as = btn_as.get_attribute('content-desc')
+                    res_id_as = btn_as.get_attribute('resource-id')
+                    is_b = (res_id_as == "com.bumble.app:id/connectionItemBeeline_cards") or \
+                           (desc_as and (desc_as.strip().isdigit() or (desc_as.strip().endswith('+') and desc_as.strip()[:-1].isdigit())))
+                    is_e = desc_as and "expired" in desc_as.lower()
+                    if not is_b and not is_e and desc_as and desc_as not in attempted_matches_content_descs_session:
+                        visible_active_non_promo_count += 1
+                except StaleElementReferenceException: pass # Ignore stale for this quick count
 
-            if max_total_matches_to_process_this_run is not None and \
-               grand_total_processed_this_run >= max_total_matches_to_process_this_run:
-                break # Break from scan_attempt loop if overall limit hit
-
-            # If we processed some matches, it's good to pause before re-scanning, UI might refresh
-            if matches_to_process_this_pass:
-                rprint(f"[grey50]Pausing before next potential scan of 'Your matches' list...[/grey50]")
-                time.sleep(random.uniform(2.0, 4.0))
+            rprint(f"[grey50]DEBUG: After scroll, found {visible_active_non_promo_count} potentially new, active, non-promo items visible.[/grey50]")
+            if visible_active_non_promo_count < 4 : # Your condition
+                rprint(f"[yellow]ℹ[/yellow] Fewer than 4 new, active, processable items visible ({visible_active_non_promo_count}). Ending exploration as per condition.")
+                break
 
 
         except TimeoutException:
-            rprint("[yellow]⚠[/yellow] Timeout waiting for 'Your matches' RecyclerView this scan. It might not be present or only promos are showing.")
-            break # No point in more scan attempts if the main list isn't found
+            rprint("[yellow]⚠[/yellow] Timeout: 'Your matches' RecyclerView not found. May be empty or page changed.")
+            break 
         except StaleElementReferenceException:
-            rprint("[yellow]⚠[/yellow] StaleElementReferenceException during main part of scan. Retrying scan if attempts left.")
+            rprint("[yellow]⚠[/yellow] StaleElementReferenceException in main loop. Retrying iteration.")
             time.sleep(1)
-            # The outer for loop (scan_attempt) will handle the next attempt if any
         except Exception as e:
-            rprint(f"[red]✗[/red] Unexpected error during scan attempt #{scan_attempt + 1}: {e}")
+            rprint(f"[red]✗[/red] Unexpected error in iteration #{iteration_num + 1}: {e}")
             import traceback
             traceback.print_exc()
             break 
-
-    rprint(f"\n[bold green]✓ Finished processing session. Total successfully messaged: {grand_total_processed_this_run}[/bold green]")
+    
+    rprint(f"\n[bold green]✓ Finished processing matches. Total successfully messaged in this run: {grand_total_processed_this_run}[/bold green]")
 if __name__ == "__main__":
     caps = {
         "platformName": "Android",

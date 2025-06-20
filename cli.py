@@ -445,7 +445,7 @@ def start_automation_specific(automation_type=None,duration=None,probability=Non
         elif automation_type == "handle_matches":
             if open_page(driver, "Chats"): 
                 print("Successfully navigated to Chats page.")
-                process_new_matches(driver,2)
+                process_new_matches(driver,10,5)
                 print("Finished chat processing phase.")
         elif automation_type == "auto":
             rprint("[yellow]Auto automation not implemented yet[/yellow]")
