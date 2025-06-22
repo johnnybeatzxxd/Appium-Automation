@@ -283,7 +283,7 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
         # 3. Type "hi" into the mini composer and send.
         message_sent_successfully = False
         try:
-            rprint("[yellow]Attempting to send 'hi' from 'It's a Match!' screen...[/yellow]")
+            rprint("[yellow]Attempting to send message from 'It's a Match!' screen...[/yellow]")
             mini_composer_input = WebDriverWait(driver, timeout).until(
                 EC.element_to_be_clickable(MATCH_SCREEN_MINI_COMPOSER_INPUT_LOCATOR)
             )
@@ -296,8 +296,15 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                  mini_composer_input.clear()
                  time.sleep(0.2)
 
-            mini_composer_input.send_keys("hey")
-            rprint("[green]Typed 'hi' into mini composer.[/green]")
+            messages = [
+                f"hi, pleasure to connect!",
+                f"Hey",
+                f"Hii",
+                f"Hey how are you?",
+            ]
+            message_to_send = random.choice(messages)
+            mini_composer_input.send_keys(message_to_send)
+            rprint(f"[green]Typed '{message_to_send}' into mini composer.[/green]")
             time.sleep(random.uniform(0.5, 1.0)) # Pause after typing
 
             # The send icon becomes enabled after typing.
@@ -309,16 +316,16 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 rprint("[orange_red1]Send icon found but reported as not enabled. Attempting click anyway.[/orange_red1]")
                 # This might indicate an issue or a slight delay in UI update for enabled state.
 
-            # send_icon.click()
-            rprint("[green]Clicked send icon for 'hi' message.[/green]")
-            # message_sent_successfully = True
-            # action_taken_on_match_screen = True
+            send_icon.click()
+            rprint("[green]Clicked send icon.[/green]")
+            message_sent_successfully = True
+            action_taken_on_match_screen = True
             time.sleep(random.uniform(0.5, 1.0)) # Pause after sending
 
         except TimeoutException:
             rprint("[red]Failed to find mini composer elements or send message on 'It's a Match!' screen.[/red]")
         except Exception as e_send:
-            rprint(f"[red]Error sending 'hi' from 'It's a Match!' screen: {e_send}[/red]")
+            rprint(f"[red]Error sending message from 'It's a Match!' screen: {e_send}[/red]")
 
         # 4. If sending "hi" failed AND fallback is enabled, try to close the screen.
         #    Or, if you ALWAYS want to close after sending, this logic changes.
