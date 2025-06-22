@@ -221,15 +221,22 @@ def is_nav_bar_present(driver, timeout=3):
         return False
 
 
-def get_current_screen_by_tab(driver, timeout=5):
+def get_current_screen_by_tab(driver: webdriver.Remote, timeout=5):
     """
     Determines the current screen by checking the selected tab in the main navigation bar.
     Returns a screen identifier (e.g., "LIKED_YOU_SCREEN") or an "UNKNOWN_SCREEN..." status.
     Returns "NAV_BAR_NOT_FOUND" if the navigation bar itself is not present.
     """
     if not is_nav_bar_present(driver, timeout=max(1, timeout // 2)): # Use a portion of the main timeout
-        rprint(f"[yellow]Debug (get_current_screen_by_tab): Main navigation bar ('{NAV_BAR_ID}') not found or not displayed.[/yellow]")
-        return "NAV_BAR_NOT_FOUND" # Specific return value for this case
+        rprint(f"[yellow]Debug (get_current_screen_by_tab): rain navigation bar ('{NAV_BAR_ID}') not found or not displayed.[/yellow]")
+        rprint(f"[yellow]Restarting Bumble ...[/yellow]")
+        driver.terminate_app("com.bumble.app")
+        time.sleep(2)
+        driver.activate_app("com.bumble.app")
+        time.sleep(3)
+        if not is_nav_bar_present(driver, timeout=max(1, timeout // 2)): # Use a portion of the main timeout
+            rprint(f"[yellow]Debug (get_current_screen_by_tab): Main navigation bar ('{NAV_BAR_ID}') not found or not displayed.[/yellow]")
+            return "NAV_BAR_NOT_FOUND" # Specific return value for this case
     
     try:
         # Nav bar is confirmed present, proceed to find selected tab
@@ -258,7 +265,7 @@ def get_current_screen_by_tab(driver, timeout=5):
         rprint(f"[red]An unexpected error occurred in get_current_screen_by_tab (after nav bar check): {e}[/red]")
         return f"UNKNOWN_SCREEN_ERROR_({type(e).__name__})"
 # --- Improved open_page function ---
-def open_page(driver, page_name_from_ui, navigation_timeout=10, verification_timeout=5):
+def open_page(driver: webdriver.Remote, page_name_from_ui, navigation_timeout=10, verification_timeout=5):
     """
     Navigates to the specified page using the bottom navigation bar if not already there.
 

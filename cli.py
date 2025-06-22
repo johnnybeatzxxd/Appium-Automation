@@ -18,6 +18,10 @@ from helper import open_page
 from swipe import realistic_swipe
 from chat import process_new_matches
 from adb import get_local_devices
+from appium.webdriver.common.appiumby import AppiumBy
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException, NoSuchElementException
 
 # Initialize rich console for better formatting
 console = Console()
@@ -69,6 +73,44 @@ def start_appium_server():
     # Couldn't find URL and no port-in-use error — real issue
     appium_process.terminate()
     raise RuntimeError("Failed to detect Appium server URL from output.")
+
+def handle_update_popup(driver, timeout=0.5) -> bool:
+    """
+    Checks for the 'It's time to update' popup and clicks 'Maybe later' if present.
+
+    Args:
+        driver: Appium WebDriver instance.
+        timeout (float): Max seconds to wait for popup appearance.
+
+    Returns:
+        bool: True if popup was handled, False otherwise.
+    """
+    try:
+        # Quick check for the header text
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located(
+                (AppiumBy.ID, "com.bumble.app:id/ctaBox_header")
+            )
+        )
+
+        # Now find the 'Maybe later' button and click it
+        maybe_later_btn = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable(
+                (AppiumBy.ID, "com.bumble.app:id/button_later")
+            )
+        )
+
+        delay = random.uniform(0.2, 0.4)
+        time.sleep(delay)
+        maybe_later_btn.click()
+        rprint(f"[green]Clicked 'Maybe later' on update popup.[/green]")
+        return True
+
+    except TimeoutException:
+        return False
+    except Exception as e:
+        rprint(f"[red]Error handling update popup: {e}[/red]")
+        return False
 
 def get_device_info(connection_address: str) -> Tuple[str, str]:
     """
@@ -160,6 +202,8 @@ def setup_appium_driver(connection_info: dict,server_url:str) -> webdriver.Remot
                 driver.activate_app(app_name)
                 retry += 1
                 continue
+            if handle_update_popup(driver):
+                rprint("[blue]Update popup handled.[/blue]")
             return driver
         return None
     except Exception as e:
@@ -441,14 +485,20 @@ def start_automation_specific(automation_type=None,duration=None,probability=Non
             # Start the swipe automation
 
         if automation_type == "swiping":
-            realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration)
+            if open_page(driver, "People"): 
+                realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration)
         elif automation_type == "handle_matches":
             if open_page(driver, "Chats"): 
-                print("Successfully navigated to Chats page.")
                 process_new_matches(driver,10,5)
                 print("Finished chat processing phase.")
         elif automation_type == "auto":
-            rprint("[yellow]Auto automation not implemented yet[/yellow]")
+            for i in range(2):
+                if open_page(driver, "People"): 
+                    realistic_swipe(driver, right_swipe_probability=7, duration_minutes=5)
+
+                if open_page(driver, "Chats"): 
+                    process_new_matches(driver,10,5)
+                    print("Finished chat processing phase.")
             
     except Exception as e:
         rprint(f"[red]An error occurred during automation: {str(e)}[/red]")

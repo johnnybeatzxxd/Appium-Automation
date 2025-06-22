@@ -85,55 +85,45 @@ NAV_BAR_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/mainApp_navigationTabBar")
 # Bumble logo, typical of the swipe screen
 NAVBAR_LOGO_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/navbar_logo")
 
-def wait_for_profile_to_load(driver, max_retries=5, wait_per_retry_sec=3, load_timeout_sec=5):
+def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load_timeout_sec=1.5):
     """
-    Checks if the app is on the Discover/swipe page and appears to be stuck loading profiles.
-    It waits for a profile card indicator to appear.
+    Quickly checks if Bumble's profile card is loaded and visible.
 
     Args:
         driver: The Appium WebDriver instance.
         max_retries (int): How many times to check for a loaded profile.
-        wait_per_retry_sec (int): How long to sleep between retries.
-        load_timeout_sec (int): How long to wait for the profile card indicator in each attempt.
+        wait_per_retry_sec (float): Sleep time between retries (seconds).
+        load_timeout_sec (float): Max wait time per attempt for profile load.
 
     Returns:
-        bool: True if a profile eventually loads (or was already loaded), 
-              False if it seems stuck loading after all retries.
+        bool: True if a profile is detected; False if app is stuck or out of profiles.
     """
-    rprint("[yellow]Checking if Discover page is loading profiles...[/yellow]")
+    rprint("[yellow]Checking if profile card is visible...[/yellow]")
 
     for attempt in range(max_retries):
         try:
-            # 1. First, confirm we are on a page that *should* show profiles (e.g., Discover page)
-            #    by checking for persistent UI elements like the nav bar and logo.
-            WebDriverWait(driver, 2).until(EC.presence_of_element_located(NAV_BAR_LOCATOR))
-            WebDriverWait(driver, 2).until(EC.presence_of_element_located(NAVBAR_LOGO_LOCATOR))
-            # rprint(f"[grey50]Attempt {attempt + 1}/{max_retries}: Discover page elements present.[/grey50]")
+            # Quick check for Discover page stability (optional)
+            WebDriverWait(driver, 1).until(EC.presence_of_element_located(NAV_BAR_LOCATOR))
+            WebDriverWait(driver, 1).until(EC.presence_of_element_located(NAVBAR_LOGO_LOCATOR))
 
-            # 2. Now, try to find an indicator that a profile CARD is actually loaded and visible.
-            #    If this is found, loading is complete (or was never stuck).
+            # Fast detection of a loaded profile card
             WebDriverWait(driver, load_timeout_sec).until(
                 EC.presence_of_element_located((AppiumBy.XPATH, PROFILE_CARD_LOADED_INDICATOR_XPATH))
-                # Or use your more specific PROFILE_CARD_USER_NAME_LOCATOR if you define it
             )
-            rprint("[green]Profile card appears to be loaded.[/green]")
-            return True # Profile loaded
+            rprint(f"[green]Profile card loaded (attempt {attempt + 1}).[/green]")
+            return True
 
         except TimeoutException:
-            # This TimeoutException means either the Discover page elements weren't found (unlikely if called during swiping)
-            # OR the PROFILE_CARD_LOADED_INDICATOR was not found within 'load_timeout_sec'.
-            rprint(f"[orange_red1]Attempt {attempt + 1}/{max_retries}: Profile card not detected within {load_timeout_sec}s. App might be loading or no profiles.[/orange_red1]")
+            rprint(f"[orange_red1]Attempt {attempt + 1}: No profile loaded in {load_timeout_sec}s.[/orange_red1]")
             if attempt < max_retries - 1:
-                rprint(f"[yellow]Waiting for {wait_per_retry_sec}s before next check...[/yellow]")
+                rprint(f"[grey50]Retrying after {wait_per_retry_sec}s...[/grey50]")
                 time.sleep(wait_per_retry_sec)
-            else:
-                rprint(f"[red]Max retries ({max_retries}) reached. Assuming profiles are not loading or none available currently.[/red]")
-                return False # Stuck loading or no profiles after all retries
         except Exception as e:
-            rprint(f"[red]An unexpected error occurred while checking for profile load: {e}[/red]")
-            return False # Exit on other errors
+            rprint(f"[red]Unexpected error while checking profile load: {e}[/red]")
+            return False
 
-    return False # Should be covered by the loop's else, but as a fallback.
+    rprint("[red]Giving up — profile card not found after retries.[/red]")
+    return False
 
 def handle_best_photo_popup(driver, timeout=3):
     """
@@ -484,49 +474,23 @@ def handle_premium_ad_popup(driver, timeout=1):
         bool: True if the ad was detected and handled, False otherwise.
     """
     try:
-        # 1. Check for the presence of a distinctive element of the ad.
-        #    Using WebDriverWait to ensure the element is present.
-        WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located(PREMIUM_AD_IDENTIFIER_TEXT_LOCATOR)
-        )
-        rprint("[yellow]Premium ad popup detected ('Find who you're looking for, faster').[/yellow]")
-
-        # 2. If the ad is detected, find and click the "Maybe later" button.
         maybe_later_button = WebDriverWait(driver, timeout).until(
             EC.element_to_be_clickable(PREMIUM_AD_MAYBE_LATER_BUTTON_LOCATOR)
         )
-        
-        # Add a small random delay for natural interaction
-        action_delay = random.uniform(0.2, 0.8)
-        rprint(f"[yellow]Clicking 'Maybe later' in {action_delay:.2f} seconds...[/yellow]")
+        action_delay = random.uniform(0.2, 0.5)
+        rprint(f"[yellow]Premium ad detected. Clicking in {action_delay:.2f}s...[/yellow]")
         time.sleep(action_delay)
-        
         maybe_later_button.click()
-        rprint("[green]Clicked 'Maybe later' on the premium ad popup.[/green]")
-        
-        # Add a pause after clicking to allow the UI to dismiss the popup and settle
-        
-        return True # Ad was handled
-
+        return True
     except TimeoutException:
-        # The ad was not found within the timeout period. This is normal if it doesn't appear.
-        # rprint("[grey50]Debug: Premium ad popup not found.[/grey50]") # Can be noisy
         return False
     except Exception as e:
-        rprint(f"[red]An error occurred while handling the premium ad popup: {e}[/red]")
-        # It's good to see the page source if an unexpected error occurs here
-        # try:
-        #     rprint(f"[grey37]Page source on premium ad error:\n{driver.page_source[:2000]}[/grey37]")
-        # except: pass
+        rprint(f"[red]Error in premium ad handler: {e}[/red]")
         return False
 
 def is_popup_present(driver):
-    try:
-        # Replace this with actual identifiers for the popup
-        popup = driver.find_element(AppiumBy.XPATH, "//android.view.ViewGroup/android.view.View/android.view.View/android.view.View") 
-        return True
-    except NoSuchElementException:
-        return False
+    popup = driver.find_elements(AppiumBy.XPATH, "//android.view.ViewGroup/android.view.View/android.view.View/android.view.View")
+    return len(popup) > 0
 
 def handle_interested_confirmation_popup(driver, timeout=1):
     """
@@ -547,33 +511,18 @@ def handle_interested_confirmation_popup(driver, timeout=1):
     # yes_button_locator_xpath = (AppیمBy.XPATH, "//android.widget.Button[@resource-id='android:id/button1' and @text='YES']")
 
     try:
-        # 1. Check for the presence of the popup panel.
-        WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located(popup_panel_locator)
-        )
-        # print("DEBUG: 'Interested?' popup panel detected.") # Optional debug
-
-        # 2. If popup panel is found, find and click the "YES" button.
         yes_button = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable(yes_button_locator)
+            EC.element_to_be_clickable((AppiumBy.ID, "android:id/button1"))
         )
-        
-        # Add a small random delay before clicking to seem more natural
-        action_delay = random.uniform(0.2, 0.5)
-        rprint(f"[yellow]Popup 'Interested?' detected. Clicking YES in {action_delay:.2f} seconds...[/yellow]")
+        action_delay = random.uniform(0.2, 0.4)
+        rprint(f"[yellow]Popup 'Interested?' detected. Clicking YES in {action_delay:.2f}s...[/yellow]")
         time.sleep(action_delay)
-        
         yes_button.click()
-        rprint("[green]Clicked 'YES' on the 'Interested?' popup.[/green]")
-        
-        # Add a small random delay after clicking to allow UI to process
-        return True # Popup was handled
-
+        return True
     except TimeoutException:
-        # The popup (or its YES button) was not found. This is normal if it doesn't appear.
         return False
     except Exception as e:
-        rprint(f"[red]An error occurred while handling the 'Interested?' popup: {e}[/red]")
+        rprint(f"[red]Error in 'Interested?' handler: {e}[/red]")
         return False
 
 
@@ -730,7 +679,7 @@ def horizontal_swipe(driver, swipe_right=True):
     swipe_dir = "RIGHT" if swipe_right else "LEFT"
     rprint(f"[grey50]Horizontal swipe {swipe_dir} performed (duration: ~{duration_ms}ms).[/grey50]")
     time.sleep(random.uniform(0.1, 0.3)) # Reduced pause after swipe from 0.2-0.6 to 0.1-0.3ndle 
-5ef realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
+def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
     """
     Perform realistic swipes on Bumble with profile checking behavior.
     
@@ -816,8 +765,16 @@ def horizontal_swipe(driver, swipe_right=True):
         # IMPORTANT: Ensure is_popup_present uses SPECIFIC locators for the "out of likes" popup.
         start_time = time.time()
         if is_popup_present(driver): 
-            rprint("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
-            return # Stop swiping
+            actions = ActionChains(driver)
+            actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
+            actions.w3c_actions.pointer_action.move_to_location(350, 1307)
+            actions.w3c_actions.pointer_action.pointer_down()
+            actions.w3c_actions.pointer_action.pause(0.2)
+            actions.w3c_actions.pointer_action.release()
+            actions.perform()
+            if is_popup_present(driver): 
+                rprint("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
+                return # Stop swiping
         
         rprint(f"[grey50]Time taken for critical popup check: {time.time() - start_time:.3f} seconds[/grey50]")
 
