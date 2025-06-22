@@ -41,7 +41,36 @@ SPOTLIGHT_PROMO_TEXT_LOCATOR = (AppiumBy.XPATH, "//*[contains(@text, 'Spotlight 
 OPENING_MOVES_SETUP_PROMO_TEXT_LOCATOR = (AppiumBy.XPATH, "//*[contains(@text, 'Get to good conversation, faster')]")
 
 CHAT_24_HOURS_BANNER_TEXT_LOCATOR = (AppiumBy.XPATH, "//android.widget.TextView[contains(@text, 'hours to reply')]")
+
+BEELINE_CARD_INNER_BUTTON_ID = "com.bumble.app:id/connectionItemBeeline_cards"
 # --- Helper Functions ---
+def is_beeline_card_currently_visible(driver, matches_rv_element):
+    """
+    Checks if the Beeline card (identified by its specific inner button ID)
+    is currently visible within the provided "Your matches" RecyclerView element.
+
+    Args:
+        driver: The Appium WebDriver instance.
+        matches_rv_element: The WebElement of the "Your matches" RecyclerView.
+
+    Returns:
+        bool: True if Beeline card's inner button is found and displayed, False otherwise.
+    """
+    try:
+        # Look for the specific button ID that signifies a Beeline card
+        # inside the passed RecyclerView element.
+        beeline_inner_button = matches_rv_element.find_element(AppiumBy.ID, BEELINE_CARD_INNER_BUTTON_ID)
+        if beeline_inner_button.is_displayed():
+            rprint("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button IS visible.[/grey50]")
+            return True
+        # rprint("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button found but not displayed.[/grey50]")
+        return False # Found but not displayed
+    except NoSuchElementException:
+        # rprint("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button NOT found.[/grey50]")
+        return False # Beeline card not present in the current view of the RV
+    except Exception as e:
+        rprint(f"[red]✗[/red] Error in is_beeline_card_currently_visible: {e}")
+        return False # Err on the side of caution
 
 def is_on_chats_list_page(driver, timeout=7):
     try:
@@ -349,17 +378,8 @@ def process_new_matches(driver,
                         max_total_matches_to_process_this_run=None, 
                         max_consecutive_empty_scrolls=3):
     """
-    Scrolls the "Your matches" list with random distance/direction, 
-    randomly picks new, non-expired matches, and processes them.
-    If all visible items are expired, it tries to scroll left (reveals items from the left).
-
-    Args:
-        driver: The Appium WebDriver instance.
-        max_total_matches_to_process_this_run (int, optional): 
-            Absolute maximum number of matches to process in this entire call.
-        max_consecutive_empty_scrolls (int, optional):
-            How many consecutive scrolls to attempt that yield no new processable matches
-            before giving up on scrolling further.
+    Scrolls the "Your matches" list. If Beeline card is visible, scrolls left.
+    Otherwise, scrolls randomly. Picks one new, non-expired match and processes it.
     """
     if not is_on_chats_list_page(driver):
         rprint("[red]✗[/red] Not starting on Chats list page. Aborting match processing.")
@@ -372,8 +392,7 @@ def process_new_matches(driver,
     grand_total_processed_this_run = 0
     attempted_matches_content_descs_session = set()
     consecutive_empty_or_all_expired_scrolls = 0
-    
-    max_overall_iterations = 25 # Safety break for the entire process
+    max_overall_iterations = 25 
     
     for iteration_num in range(max_overall_iterations):
         rprint(f"\n[cyan]--- Processing Iteration #{iteration_num + 1} ---[/cyan]")
@@ -386,90 +405,53 @@ def process_new_matches(driver,
         if not is_on_chats_list_page(driver, timeout=3):
             rprint("[red]✗[/red] No longer on Chats list page. Aborting.")
             break
-        
-        # (Your general promo checks like Spotlight, Opening Moves Setup can go here if they replace the whole matches list)
-        # ...
 
         try:
+            # --- CRITICAL: Fetch the RecyclerView element fresh in EACH iteration ---
             matches_rv_element = WebDriverWait(driver, 7).until(
                 EC.presence_of_element_located(YOUR_MATCHES_RV_LOCATOR)
             )
+
+            # Check for promos that replace the entire list (like Spotlight)
+            # This logic can be added here if needed, but we'll focus on Beeline for now.
+
+            # Get the top-level clickable items in the carousel
+            # Note: From your XML, both user matches (Button) and the Beeline card (FrameLayout) are direct children of the RecyclerView
             all_items_in_rv_view = matches_rv_element.find_elements(AppiumBy.XPATH, MATCH_ITEM_BUTTON_XPATH)
-
-            if not all_items_in_rv_view:
-                rprint("[yellow]ℹ[/yellow] No items at all in 'Your matches' RecyclerView view this iteration.")
-                consecutive_empty_or_all_expired_scrolls +=1 
-                if consecutive_empty_or_all_expired_scrolls >= max_consecutive_empty_scrolls:
-                    rprint(f"[yellow]⚠[/yellow] No items found for {max_consecutive_empty_scrolls} checks. Stopping.")
-                    break
-                if not perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction="random"): break
-                continue 
-
+            
+            # --- Filter for processable matches ---
             new_active_processable_matches = []
-            count_visible_expired_matches = 0
-            count_total_visible_user_cards = 0 # Count actual user cards (not Beeline)
-
             for btn in all_items_in_rv_view:
                 try:
                     if not btn.is_displayed(): continue
-                    desc = btn.get_attribute('content-desc')
-                    res_id = btn.get_attribute('resource-id')
-
-                    is_beeline_card = (res_id == "com.bumble.app:id/connectionItemBeeline_cards") or \
-                                      (desc and (desc.strip().isdigit() or (desc.strip().endswith('+') and desc.strip()[:-1].isdigit())))
                     
-                    if is_beeline_card:
-                        rprint(f"[grey50]DEBUG: Skipping Beeline card ('{desc}').[/grey50]")
-                        if desc: attempted_matches_content_descs_session.add(desc + "_BEELINE_SKIPPED")
-                        continue
-                    
-                    # If not Beeline, it's a user card (either active or expired)
-                    count_total_visible_user_cards += 1
-                    is_expired_match = desc and "expired" in desc.lower()
-
-                    if is_expired_match:
-                        rprint(f"[grey50]DEBUG: Found expired match ('{desc}').[/grey50]")
-                        count_visible_expired_matches += 1
-                        if desc: attempted_matches_content_descs_session.add(desc + "_EXPIRED_SKIPPED")
-                        continue 
-                    
-                    if desc and desc not in attempted_matches_content_descs_session:
-                        new_active_processable_matches.append({'element': btn, 'desc': desc})
+                    # We only care about user match buttons for processing
+                    if btn.get_attribute('resource-id') == "com.bumble.app:id/connectionItem_ringView":
+                        desc = btn.get_attribute('content-desc')
+                        is_expired_match = desc and "expired" in desc.lower()
+                        if is_expired_match:
+                            if desc: attempted_matches_content_descs_session.add(desc + "_EXPIRED_SKIPPED")
+                            continue
+                        
+                        if desc and desc not in attempted_matches_content_descs_session:
+                            new_active_processable_matches.append({'element': btn, 'desc': desc})
                 except StaleElementReferenceException:
-                    rprint("[yellow]⚠[/yellow] Stale element while filtering. Will retry iteration/scroll.")
-                    new_active_processable_matches = "RETRY_ITERATION" 
-                    break 
-            
+                    rprint("[yellow]⚠[/yellow] Stale element during filtering. Will retry iteration.")
+                    new_active_processable_matches = "RETRY_ITERATION"
+                    break
+
             if new_active_processable_matches == "RETRY_ITERATION":
-                time.sleep(0.5)
-                # Optionally scroll before retrying iteration to refresh view
-                # perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction="random")
-                continue
-
-            # --- Logic after filtering visible items ---
-            match_to_process_this_iteration = None
-            scroll_direction_for_next = "random" # Default next scroll direction
-
-            if new_active_processable_matches:
-                rprint(f"[blue]→[/blue] Found {len(new_active_processable_matches)} new, active, processable match(es) in current view.")
-                consecutive_empty_or_all_expired_scrolls = 0 # Reset counter
-
-                match_to_process_this_iteration = random.choice(new_active_processable_matches)
+                time.sleep(0.5); continue
             
-            elif count_total_visible_user_cards > 0 and count_visible_expired_matches == count_total_visible_user_cards:
-                # All visible user cards are expired
-                rprint("[yellow]ℹ[/yellow] All currently visible user matches are expired.")
-                consecutive_empty_or_all_expired_scrolls += 1 # Count this state
-                scroll_direction_for_next = "right" # Force scroll left (to reveal from left)
-                rprint(f"[blue]→[/blue] Forcing scroll RIGHT (to reveal left items) as all visible are expired.")
-            
-            else: # No new active, and not all are expired (could be empty or all previously attempted)
-                rprint("[yellow]ℹ[/yellow] No NEW, ACTIVE, processable matches in current view (might be empty or all attempted/expired).")
+            if not new_active_processable_matches:
+                rprint("[yellow]ℹ[/yellow] No new, active, processable matches found in the current view.")
                 consecutive_empty_or_all_expired_scrolls += 1
+            else:
+                rprint(f"[blue]→[/blue] Found {len(new_active_processable_matches)} new, active, processable match(es) in current view.")
+                consecutive_empty_or_all_expired_scrolls = 0 # Reset counter since we found something
 
-
-            # --- Process the chosen match (if any) ---
-            if match_to_process_this_iteration:
+                # --- Pick one random match to process ---
+                match_to_process_this_iteration = random.choice(new_active_processable_matches)
                 current_match_element_to_click = match_to_process_this_iteration['element']
                 current_match_desc = match_to_process_this_iteration['desc']
                 attempted_matches_content_descs_session.add(current_match_desc)
@@ -477,69 +459,47 @@ def process_new_matches(driver,
                 rprint(f"\n[magenta]--- Processing selected match: {current_match_desc} ---[/magenta]")
                 try:
                     current_match_element_to_click.click()
-                except Exception as click_err:
-                    rprint(f"[red]✗[/red] Error clicking match {current_match_desc}: {click_err}. Skipping.")
-                    # No scroll here, let the main scroll logic at the end of loop handle it
-                    continue # To next iteration of main while loop
-
-                time.sleep(random.uniform(1.5, 2.5)) 
-                user_name_for_chat_verification = current_match_desc
-
-                if handle_opening_move_screen(driver):
-                    rprint("[green]✓[/green] Handled 'Opening Move' screen")
-                
-                if is_on_individual_chat_page(driver, user_name_for_verification=user_name_for_chat_verification):
-                    if send_opening_message(driver, user_name_for_chat_verification):
-                        grand_total_processed_this_run += 1
-                        rprint(f"[green]✓[/green] Successfully processed and messaged {current_match_desc}")
+                    # (The rest of your processing logic: go to chat, send message, navigate back)
+                    time.sleep(random.uniform(1.5, 2.5)) 
+                    if handle_opening_move_screen(driver): rprint("[green]✓[/green] Handled 'Opening Move' screen")
+                    if is_on_individual_chat_page(driver, user_name_for_verification=current_match_desc):
+                        if send_opening_message(driver, current_match_desc):
+                            grand_total_processed_this_run += 1
+                            rprint(f"[green]✓[/green] Successfully processed and messaged {current_match_desc}")
+                        if not navigate_back_to_chats_list(driver): return # Critical error
                     else:
-                        rprint(f"[red]✗[/red] Failed to send message to {current_match_desc}")
+                        rprint(f"[red]✗[/red] Did not land on individual chat page for {current_match_desc}.")
+                        if not navigate_back_to_chats_list(driver): return # Critical error
+                    time.sleep(random.uniform(0.5, 1.5))
+                except Exception as click_err:
+                    rprint(f"[red]✗[/red] Error processing match {current_match_desc}: {click_err}. Skipping.")
+                    continue
 
-                    if not navigate_back_to_chats_list(driver):
-                        rprint("[red]✗[/red] Critical: Failed to navigate back after chat. Ending run.")
-                        return 
-                else:
-                    rprint(f"[red]✗[/red] Did not land on individual chat page for {current_match_desc}.")
-                    if not navigate_back_to_chats_list(driver):
-                        rprint("[red]✗[/red] Critical: Failed to navigate back. Ending run.")
-                        return
-                
-                time.sleep(random.uniform(0.5, 1.5)) 
-            
-            # --- End of processing a match ---
-
-            # Check stopping condition based on consecutive empty/all_expired scrolls
+            matches_rv_element = WebDriverWait(driver, 7).until(
+                EC.presence_of_element_located(YOUR_MATCHES_RV_LOCATOR)
+            )
+            # --- Scroll Logic for Next Iteration ---
             if consecutive_empty_or_all_expired_scrolls >= max_consecutive_empty_scrolls:
                 rprint(f"[yellow]⚠[/yellow] Reached {max_consecutive_empty_scrolls} consecutive views with no new active matches. Stopping exploration.")
                 break
-            
-            rprint(f"[blue]→[/blue] Performing horizontal scroll (direction: {scroll_direction_for_next})...")
-            if not perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction=scroll_direction_for_next):
-                rprint("[red]✗[/red] Failed to scroll, cannot continue finding matches.")
-                break
-            
-            # Your specific stopping condition: "until there is less than 4 items visible on the screen"
-            # After the scroll, the loop will re-evaluate. If you want an immediate check after scroll:
-            time.sleep(0.5) # Give a moment for UI to potentially update after scroll
-            current_items_after_scroll = matches_rv_element.find_elements(AppiumBy.XPATH, MATCH_ITEM_BUTTON_XPATH)
-            visible_active_non_promo_count = 0
-            for btn_as in current_items_after_scroll: # Re-filter
-                try:
-                    if not btn_as.is_displayed(): continue
-                    desc_as = btn_as.get_attribute('content-desc')
-                    res_id_as = btn_as.get_attribute('resource-id')
-                    is_b = (res_id_as == "com.bumble.app:id/connectionItemBeeline_cards") or \
-                           (desc_as and (desc_as.strip().isdigit() or (desc_as.strip().endswith('+') and desc_as.strip()[:-1].isdigit())))
-                    is_e = desc_as and "expired" in desc_as.lower()
-                    if not is_b and not is_e and desc_as and desc_as not in attempted_matches_content_descs_session:
-                        visible_active_non_promo_count += 1
-                except StaleElementReferenceException: pass # Ignore stale for this quick count
 
-            rprint(f"[grey50]DEBUG: After scroll, found {visible_active_non_promo_count} potentially new, active, non-promo items visible.[/grey50]")
-            if visible_active_non_promo_count < 4 : # Your condition
-                rprint(f"[yellow]ℹ[/yellow] Fewer than 4 new, active, processable items visible ({visible_active_non_promo_count}). Ending exploration as per condition.")
-                break
-
+            if iteration_num < max_overall_iterations - 1:
+                # --- THIS IS THE KEY CHANGE ---
+                # Check for Beeline card's presence *right before* deciding the scroll direction.
+                # Use the fresh matches_rv_element we just fetched.
+                scroll_direction_for_next = "random" 
+                if is_beeline_card_currently_visible(driver, matches_rv_element):
+                    scroll_direction_for_next = "left" 
+                    rprint("[blue]→[/blue] Beeline card is visible, forcing scroll direction to LEFT.")
+                else:
+                    rprint("[blue]→[/blue] Beeline card not visible, next scroll direction will be RANDOM.")
+                
+                rprint(f"[blue]→[/blue] Performing horizontal scroll (preferred: {scroll_direction_for_next}) to find more...")
+                if not perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction=scroll_direction_for_next):
+                    rprint("[red]✗[/red] Failed to scroll, cannot continue finding more matches.")
+                    break
+            else:
+                rprint("[grey50]DEBUG: Max iterations reached, not scrolling further.[/grey50]")
 
         except TimeoutException:
             rprint("[yellow]⚠[/yellow] Timeout: 'Your matches' RecyclerView not found. May be empty or page changed.")
@@ -547,13 +507,13 @@ def process_new_matches(driver,
         except StaleElementReferenceException:
             rprint("[yellow]⚠[/yellow] StaleElementReferenceException in main loop. Retrying iteration.")
             time.sleep(1)
+            continue
         except Exception as e:
             rprint(f"[red]✗[/red] Unexpected error in iteration #{iteration_num + 1}: {e}")
-            import traceback
-            traceback.print_exc()
+            import traceback; traceback.print_exc()
             break 
     
-    rprint(f"\n[bold green]✓ Finished processing matches. Total successfully messaged in this run: {grand_total_processed_this_run}[/bold green]")
+    rprint(f"\n[bold green]✓ Finished processing matches. Total successfully messaged: {grand_total_processed_this_run}[/bold green]")
 if __name__ == "__main__":
     caps = {
         "platformName": "Android",
