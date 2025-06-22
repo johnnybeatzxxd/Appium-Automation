@@ -34,6 +34,7 @@ driver = None
 def start_appium_server():
     appium_process = subprocess.Popen(
         ["appium"],
+        shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
