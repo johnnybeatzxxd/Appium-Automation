@@ -296,13 +296,35 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                  mini_composer_input.clear()
                  time.sleep(0.2)
 
-            messages = [
-                f"hi, pleasure to connect!",
-                f"Hey",
-                f"Hii",
-                f"Hey how are you?",
+            opening_lines = [
+                "You look like you have a good voice, do you?",
+                "If you were a drink what would you be? (I feel like tequila ngl)",
+                "Idk what it is about you but bumble finally did smth right",
+                "I'm already picturing our awkward first date, how exciting",
+                "You have the vibe of someone who texts “wyd” at 2am",
+                "You seem like the kind of guy who’d flirt with the bartender while I’m in the bathroom",
+                "Not saying you’re my type but… my type is confused rn",
+                "On a scale from gym rat to gamer, where do you fall",
+                "You’re either super chill or a walking red flag, curious which",
+                "I already regret texting you but here we are",
+                "I matched just to see if you’d message first (you didn’t, shame)",
+                "Guess I’ll start the convo since ur clearly shy",
+                "Okay so how tall are you really",
+                "Let’s settle this, pineapple on pizza: yes or no",
+                "U look like you either surf or scam people idk",
+                "I have a feeling you give the worst music recommendations, prove me wrong",
+                "Not sure if you’re cute or if bumble’s algorithm just tricked me again",
+                "Do you pass the vibe check or should I unmatch early",
+                "You look like someone who doesn’t reply fast, am I right?",
+                "I swiped for research purposes",
+                "Don’t disappoint, I had high hopes (barely)",
+                "Thought I’d break the ice before it melts",
+                "I was gonna wait for you to text first but here we are",
+                "If this convo flops, let’s blame the app",
+                "Not sure why I swiped but now I’m curious",
+                "Prove to me this app actually works sometimes",
             ]
-            message_to_send = random.choice(messages)
+            message_to_send = random.choice(opening_lines )
             mini_composer_input.send_keys(message_to_send)
             rprint(f"[green]Typed '{message_to_send}' into mini composer.[/green]")
             time.sleep(random.uniform(0.5, 1.0)) # Pause after typing
