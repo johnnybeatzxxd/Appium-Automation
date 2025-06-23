@@ -22,7 +22,7 @@ from appium.webdriver.common.appiumby import AppiumBy
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, StaleElementReferenceException, NoSuchElementException
-
+from appium.webdriver.appium_service import AppiumService
 # Initialize rich console for better formatting
 console = Console()
 
@@ -31,50 +31,39 @@ appium_process = None
 connected_phone_id = None
 driver = None
 
+appium_service = None
+
 def start_appium_server():
-    appium_process = subprocess.Popen(
-        ["appium"],
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
-    )
+    """Starts the Appium server using the AppiumService class."""
+    global appium_service
+    
+    # Define the host and port for clarity
+    host = '127.0.0.1'
+    port = '4723'
+    server_url = f"http://{host}:{port}"
+    
+    # Check if a service object already exists and is running
+    if appium_service and appium_service.is_running:
+        console.print(f"[yellow]Appium server is already running at {server_url}[/yellow]")
+        return server_url
 
-    server_url = None
-    port_in_use = False
-
-    def read_output():
-        nonlocal server_url, port_in_use
-        for line in appium_process.stdout:
-            print(line.strip())  # Optional: log Appium output
-
-            # Check if port is already in use
-            if "EADDRINUSE" in line or "address already in use" in line:
-                port_in_use = True
-                break
-
-            # Try to detect URL
-            match = re.search(r'http://127\.0\.0\.1:\d+', line)
-            if match:
-                server_url = match.group(0)
-                break
-
-    reader_thread = threading.Thread(target=read_output)
-    reader_thread.start()
-    reader_thread.join(timeout=10)
-
-    if server_url:
-        return appium_process, server_url
-
-    if port_in_use:
-        print("[Info] Appium server is already running. Using default URL: http://127.0.0.1:4723")
-        return None, "http://127.0.0.1:4723"
-
-    # Couldn't find URL and no port-in-use error — real issue
-    appium_process.terminate()
-    raise RuntimeError("Failed to detect Appium server URL from output.")
-
+    # Start the Appium server
+    appium_service = AppiumService()
+    try:
+        console.print("[yellow]Starting Appium server...[/yellow]")
+        appium_service.start(args=['--address', host, '--port', port])
+        
+        console.print(f"[green]Appium server started successfully at {server_url}[/green]")
+        return server_url
+        
+    except Exception as e:
+        # This handles the case where the port is already in use by another process
+        if "main process already died" in str(e) or "Address already in use" in str(e):
+             console.print(f"[yellow]Server appears to be already running. Attempting to connect to {server_url}[/yellow]")
+             return server_url
+        
+        console.print(f"[red]Failed to start Appium server: {e}[/red]")
+        raise RuntimeError("Could not start or connect to Appium server.")
 def handle_update_popup(driver, timeout=0.5) -> bool:
     """
     Checks for the 'It's time to update' popup and clicks 'Maybe later' if present.
@@ -213,7 +202,7 @@ def setup_appium_driver(connection_info: dict,server_url:str) -> webdriver.Remot
 
 def cleanup_phone():
     """Cleanup function to stop the connected phone and close the driver."""
-    global connected_phone_id, driver
+    global connected_phone_id, driver, appium_service
     
     # Close the Appium driver if it exists
     if driver:
@@ -239,10 +228,13 @@ def cleanup_phone():
     # Kill ADB server after cleanup
     manage_adb_server("kill")
 
-    global appium_process
-    if appium_process:
-        appium_process.terminate()
-        rprint("[red]Appium server terminated.[/red]")
+    if appium_service and appium_service.is_running:
+        try:
+            rprint("[yellow]Stopping Appium server...[/yellow]")
+            appium_service.stop()
+            rprint("[green]Appium server stopped successfully.[/green]")
+        except Exception as e:
+            rprint(f"[red]Error stopping Appium server: {e}[/red]")
 
 def signal_handler(signum, frame):
     """Handle interruption signals."""
@@ -473,7 +465,7 @@ def start_automation_specific(automation_type=None,duration=None,probability=Non
         # Set up Appium driver
         rprint("[yellow]Starting Appium server...[/yellow]")
         global appium_process
-        appium_process, server_url = start_appium_server()
+        server_url = start_appium_server()
         rprint("[yellow]Initializing Appium driver...[/yellow]")
         driver = setup_appium_driver(connection_info,server_url)
         if not driver:
