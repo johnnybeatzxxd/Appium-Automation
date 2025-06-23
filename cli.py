@@ -64,7 +64,7 @@ def start_appium_server():
         
         console.print(f"[red]Failed to start Appium server: {e}[/red]")
         raise RuntimeError("Could not start or connect to Appium server.")
-def handle_update_popup(driver, timeout=0.5) -> bool:
+def handle_update_popup(driver, timeout=3) -> bool:
     """
     Checks for the 'It's time to update' popup and clicks 'Maybe later' if present.
 

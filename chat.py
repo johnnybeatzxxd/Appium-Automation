@@ -72,7 +72,7 @@ def is_beeline_card_currently_visible(driver, matches_rv_element):
         rprint(f"[red]✗[/red] Error in is_beeline_card_currently_visible: {e}")
         return False # Err on the side of caution
 
-def is_on_chats_list_page(driver, timeout=7):
+def is_on_chats_list_page(driver, timeout=5):
     try:
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(YOUR_MATCHES_TITLE_LOCATOR)
@@ -179,7 +179,7 @@ def send_opening_message(driver, match_name):
         # --- Attempt to click the SEND button using the specific ID ---
         try:
             # The send button should now be present and clickable with its specific ID
-            send_button = WebDriverWait(driver, 7).until(
+            send_button = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable(CHAT_SEND_BUTTON_LOCATOR) # Using the new ID-based locator
             )
             send_button.click()
@@ -408,7 +408,7 @@ def process_new_matches(driver,
 
         try:
             # --- CRITICAL: Fetch the RecyclerView element fresh in EACH iteration ---
-            matches_rv_element = WebDriverWait(driver, 7).until(
+            matches_rv_element = WebDriverWait(driver, 4).until(
                 EC.presence_of_element_located(YOUR_MATCHES_RV_LOCATOR)
             )
 
@@ -475,7 +475,7 @@ def process_new_matches(driver,
                     rprint(f"[red]✗[/red] Error processing match {current_match_desc}: {click_err}. Skipping.")
                     continue
 
-            matches_rv_element = WebDriverWait(driver, 7).until(
+            matches_rv_element = WebDriverWait(driver, 4).until(
                 EC.presence_of_element_located(YOUR_MATCHES_RV_LOCATOR)
             )
             # --- Scroll Logic for Next Iteration ---
