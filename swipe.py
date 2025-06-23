@@ -316,11 +316,14 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 rprint("[orange_red1]Send icon found but reported as not enabled. Attempting click anyway.[/orange_red1]")
                 # This might indicate an issue or a slight delay in UI update for enabled state.
 
-            send_icon.click()
-            rprint("[green]Clicked send icon.[/green]")
-            message_sent_successfully = True
-            action_taken_on_match_screen = True
-            time.sleep(random.uniform(0.5, 1.0)) # Pause after sending
+            chance_of_sending_message = random.uniform(0, 10)
+            if chance_of_sending_message > 5:
+                send_icon.click()
+                rprint("[green]Clicked send icon.[/green]")
+                message_sent_successfully = True
+                action_taken_on_match_screen = True
+                time.sleep(random.uniform(0.5, 1.0)) # Pause after sending
+
 
         except TimeoutException:
             rprint("[red]Failed to find mini composer elements or send message on 'It's a Match!' screen.[/red]")
