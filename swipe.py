@@ -103,8 +103,8 @@ def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load
     for attempt in range(max_retries):
         try:
             # Quick check for Discover page stability (optional)
-            WebDriverWait(driver, 1).until(EC.presence_of_element_located(NAV_BAR_LOCATOR))
-            WebDriverWait(driver, 1).until(EC.presence_of_element_located(NAVBAR_LOGO_LOCATOR))
+            WebDriverWait(driver, 0.5).until(EC.presence_of_element_located(NAV_BAR_LOCATOR))
+            WebDriverWait(driver, 0.5).until(EC.presence_of_element_located(NAVBAR_LOGO_LOCATOR))
 
             # Fast detection of a loaded profile card
             WebDriverWait(driver, load_timeout_sec).until(
@@ -115,6 +115,7 @@ def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load
 
         except TimeoutException:
             rprint(f"[orange_red1]Attempt {attempt + 1}: No profile loaded in {load_timeout_sec}s.[/orange_red1]")
+            driver.back()
             if attempt < max_retries - 1:
                 rprint(f"[grey50]Retrying after {wait_per_retry_sec}s...[/grey50]")
                 time.sleep(wait_per_retry_sec)
@@ -263,83 +264,83 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
         action_taken_on_match_screen = False # Flag to track if we did anything
 
         # 2. (Optional) Try to click "Got it" for the "Opening Moves" info box if it's present.
-        try:
-            WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located(OPENING_MOVES_INFO_BOX_TEXT_LOCATOR)
-            )
-            opening_moves_got_it_button = WebDriverWait(driver, 2).until(
-                EC.element_to_be_clickable(OPENING_MOVES_INFO_BOX_GOT_IT_BUTTON_LOCATOR)
-            )
-            rprint(f"[yellow]Found 'Opening Moves' info box. Clicking 'Got it'...")
-            opening_moves_got_it_button.click()
-            rprint("[green]Clicked 'Got it' on 'Opening Moves' info box.[/green]")
-            time.sleep(random.uniform(0.5, 1.0)) # Pause after this click
-            action_taken_on_match_screen = True
-        except TimeoutException:
-            rprint("[grey50]Debug: 'Opening Moves' info box not found on 'It's a Match!' screen. Skipping its 'Got it'.[/grey50]")
-        except Exception as e_om:
-            rprint(f"[orange_red1]Minor error handling 'Opening Moves' info box: {e_om}. Proceeding.[/orange_red1]")
+        chance = random.uniform(0,10)
+        if chance > 6:
+            try:
+                WebDriverWait(driver, 2).until(
+                    EC.presence_of_element_located(OPENING_MOVES_INFO_BOX_TEXT_LOCATOR)
+                )
+                opening_moves_got_it_button = WebDriverWait(driver, 2).until(
+                    EC.element_to_be_clickable(OPENING_MOVES_INFO_BOX_GOT_IT_BUTTON_LOCATOR)
+                )
+                rprint(f"[yellow]Found 'Opening Moves' info box. Clicking 'Got it'...")
+                opening_moves_got_it_button.click()
+                rprint("[green]Clicked 'Got it' on 'Opening Moves' info box.[/green]")
+                time.sleep(random.uniform(0.5, 1.0)) # Pause after this click
+                action_taken_on_match_screen = True
+            except TimeoutException:
+                rprint("[grey50]Debug: 'Opening Moves' info box not found on 'It's a Match!' screen. Skipping its 'Got it'.[/grey50]")
+            except Exception as e_om:
+                rprint(f"[orange_red1]Minor error handling 'Opening Moves' info box: {e_om}. Proceeding.[/orange_red1]")
 
-        # 3. Type "hi" into the mini composer and send.
-        message_sent_successfully = False
-        try:
-            rprint("[yellow]Attempting to send message from 'It's a Match!' screen...[/yellow]")
-            mini_composer_input = WebDriverWait(driver, timeout).until(
-                EC.element_to_be_clickable(MATCH_SCREEN_MINI_COMPOSER_INPUT_LOCATOR)
-            )
-            
-            mini_composer_input.click() # Focus the input
-            time.sleep(0.3)
-            
-            # Clear if needed (e.g., if "Send a message..." is actual text, not just hint)
-            if mini_composer_input.text.lower() == "send a message...":
-                 mini_composer_input.clear()
-                 time.sleep(0.2)
+            # 3. Type "hi" into the mini composer and send.
+            message_sent_successfully = False
+            try:
+                rprint("[yellow]Attempting to send message from 'It's a Match!' screen...[/yellow]")
+                mini_composer_input = WebDriverWait(driver, timeout).until(
+                    EC.element_to_be_clickable(MATCH_SCREEN_MINI_COMPOSER_INPUT_LOCATOR)
+                )
+                
+                mini_composer_input.click() # Focus the input
+                time.sleep(0.3)
+                
+                # Clear if needed (e.g., if "Send a message..." is actual text, not just hint)
+                if mini_composer_input.text.lower() == "send a message...":
+                     mini_composer_input.clear()
+                     time.sleep(0.2)
 
-            opening_lines = [
-                "You look like you have a good voice, do you?",
-                "If you were a drink what would you be? (I feel like tequila ngl)",
-                "Idk what it is about you but bumble finally did smth right",
-                "I'm already picturing our awkward first date, how exciting",
-                "You have the vibe of someone who texts “wyd” at 2am",
-                "You seem like the kind of guy who’d flirt with the bartender while I’m in the bathroom",
-                "Not saying you’re my type but… my type is confused rn",
-                "On a scale from gym rat to gamer, where do you fall",
-                "You’re either super chill or a walking red flag, curious which",
-                "I already regret texting you but here we are",
-                "I matched just to see if you’d message first (you didn’t, shame)",
-                "Guess I’ll start the convo since ur clearly shy",
-                "Okay so how tall are you really",
-                "Let’s settle this, pineapple on pizza: yes or no",
-                "U look like you either surf or scam people idk",
-                "I have a feeling you give the worst music recommendations, prove me wrong",
-                "Not sure if you’re cute or if bumble’s algorithm just tricked me again",
-                "Do you pass the vibe check or should I unmatch early",
-                "You look like someone who doesn’t reply fast, am I right?",
-                "I swiped for research purposes",
-                "Don’t disappoint, I had high hopes (barely)",
-                "Thought I’d break the ice before it melts",
-                "I was gonna wait for you to text first but here we are",
-                "If this convo flops, let’s blame the app",
-                "Not sure why I swiped but now I’m curious",
-                "Prove to me this app actually works sometimes",
-            ]
-            message_to_send = random.choice(opening_lines )
-            mini_composer_input.send_keys(message_to_send)
-            rprint(f"[green]Typed '{message_to_send}' into mini composer.[/green]")
-            time.sleep(random.uniform(0.5, 1.0)) # Pause after typing
+                opening_lines = [
+                    "You look like you have a good voice, do you?",
+                    "If you were a drink what would you be? (I feel like tequila ngl)",
+                    "Idk what it is about you but bumble finally did smth right",
+                    "I'm already picturing our awkward first date, how exciting",
+                    "You have the vibe of someone who texts “wyd” at 2am",
+                    "You seem like the kind of guy who’d flirt with the bartender while I’m in the bathroom",
+                    "Not saying you’re my type but… my type is confused rn",
+                    "On a scale from gym rat to gamer, where do you fall",
+                    "You’re either super chill or a walking red flag, curious which",
+                    "I already regret texting you but here we are",
+                    "I matched just to see if you’d message first (you didn’t, shame)",
+                    "Guess I’ll start the convo since ur clearly shy",
+                    "Okay so how tall are you really",
+                    "Let’s settle this, pineapple on pizza: yes or no",
+                    "U look like you either surf or scam people idk",
+                    "I have a feeling you give the worst music recommendations, prove me wrong",
+                    "Not sure if you’re cute or if bumble’s algorithm just tricked me again",
+                    "Do you pass the vibe check or should I unmatch early",
+                    "You look like someone who doesn’t reply fast, am I right?",
+                    "I swiped for research purposes",
+                    "Don’t disappoint, I had high hopes (barely)",
+                    "Thought I’d break the ice before it melts",
+                    "I was gonna wait for you to text first but here we are",
+                    "If this convo flops, let’s blame the app",
+                    "Not sure why I swiped but now I’m curious",
+                    "Prove to me this app actually works sometimes",
+                ]
+                message_to_send = random.choice(opening_lines )
+                mini_composer_input.send_keys(message_to_send)
+                rprint(f"[green]Typed '{message_to_send}' into mini composer.[/green]")
+                time.sleep(random.uniform(0.5, 1.0)) # Pause after typing
 
-            # The send icon becomes enabled after typing.
-            send_icon = WebDriverWait(driver, timeout).until(
-                EC.element_to_be_clickable(MATCH_SCREEN_MINI_COMPOSER_SEND_ICON_LOCATOR)
-            )
-            # Double check if it's actually enabled, though element_to_be_clickable should cover this
-            if not send_icon.is_enabled():
-                rprint("[orange_red1]Send icon found but reported as not enabled. Attempting click anyway.[/orange_red1]")
-                # This might indicate an issue or a slight delay in UI update for enabled state.
+                # The send icon becomes enabled after typing.
+                send_icon = WebDriverWait(driver, timeout).until(
+                    EC.element_to_be_clickable(MATCH_SCREEN_MINI_COMPOSER_SEND_ICON_LOCATOR)
+                )
+                # Double check if it's actually enabled, though element_to_be_clickable should cover this
+                if not send_icon.is_enabled():
+                    rprint("[orange_red1]Send icon found but reported as not enabled. Attempting click anyway.[/orange_red1]")
+                    # This might indicate an issue or a slight delay in UI update for enabled state.
 
-            chance_of_sending_message = random.uniform(0, 10)
-            if chance_of_sending_message > 5:
                 send_icon.click()
                 rprint("[green]Clicked send icon.[/green]")
                 message_sent_successfully = True
@@ -347,16 +348,41 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 time.sleep(random.uniform(0.5, 1.0)) # Pause after sending
 
 
-        except TimeoutException:
-            rprint("[red]Failed to find mini composer elements or send message on 'It's a Match!' screen.[/red]")
-        except Exception as e_send:
-            rprint(f"[red]Error sending message from 'It's a Match!' screen: {e_send}[/red]")
+            except TimeoutException:
+                rprint("[red]Failed to find mini composer elements or send message on 'It's a Match!' screen.[/red]")
+            except Exception as e_send:
+                rprint(f"[red]Error sending message from 'It's a Match!' screen: {e_send}[/red]")
 
-        # 4. If sending "hi" failed AND fallback is enabled, try to close the screen.
-        #    Or, if you ALWAYS want to close after sending, this logic changes.
-        #    Current logic: Prioritize sending message. If that path fails, then consider closing.
-        if not message_sent_successfully and fallback_to_close:
-            rprint("[yellow]Sending 'hi' failed or was skipped. Attempting to close 'It's a Match!' screen as fallback.[/yellow]")
+            # 4. If sending "hi" failed AND fallback is enabled, try to close the screen.
+            #    Or, if you ALWAYS want to close after sending, this logic changes.
+            #    Current logic: Prioritize sending message. If that path fails, then consider closing.
+            if not message_sent_successfully and fallback_to_close:
+                rprint("[yellow]Sending 'hi' failed or was skipped. Attempting to close 'It's a Match!' screen as fallback.[/yellow]")
+                try:
+                    main_close_button = WebDriverWait(driver, 2).until( # Shorter timeout for fallback close
+                        EC.element_to_be_clickable(ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR)
+                    )
+                    main_close_button.click()
+                    rprint("[green]Clicked main 'Close' button to dismiss 'It's a Match!' screen (fallback).[/green]")
+                    action_taken_on_match_screen = True
+                    time.sleep(random.uniform(1.2, 2.2))
+                except Exception as e_close:
+                    rprint(f"[red]Failed to close 'It's a Match!' screen via 'Close' button during fallback: {e_close}[/red]")
+                    rprint("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
+                    time.sleep(1.5)
+                    action_taken_on_match_screen = True # Assume back action did something
+
+            elif message_sent_successfully:
+                # If message was sent, we still need to get off this screen.
+                # Typically, after sending from this mini-composer, the screen might auto-dismiss
+                # or transition to the full chat. If it just stays on "It's a Match!", we need to close it.
+                rprint("[grey50]Message sent from 'It's a Match!'. Performing system back to return to swiping.[/grey50]")
+                time.sleep(random.uniform(0.3, 1.0))
+                action_taken_on_match_screen = True
+
+
+            return action_taken_on_match_screen # Return true if we interacted with the match screen
+        else:
             try:
                 main_close_button = WebDriverWait(driver, 2).until( # Shorter timeout for fallback close
                     EC.element_to_be_clickable(ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR)
@@ -370,18 +396,7 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 rprint("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
                 time.sleep(1.5)
                 action_taken_on_match_screen = True # Assume back action did something
-
-        elif message_sent_successfully:
-            # If message was sent, we still need to get off this screen.
-            # Typically, after sending from this mini-composer, the screen might auto-dismiss
-            # or transition to the full chat. If it just stays on "It's a Match!", we need to close it.
-            rprint("[grey50]Message sent from 'It's a Match!'. Performing system back to return to swiping.[/grey50]")
-            time.sleep(random.uniform(0.3, 1.0))
-            action_taken_on_match_screen = True
-
-
-        return action_taken_on_match_screen # Return true if we interacted with the match screen
-
+            rprint("[green]Nah Im Skipping This One.[/green]")
     except TimeoutException:
         # The "It's a Match!" screen itself was not found.
         return False
@@ -731,56 +746,6 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             rprint("[bold red]The app just closed![/bold red]")
             return
 
-
-        if handle_interested_confirmation_popup(driver,0):
-            rprint("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
-            time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
-            continue # Restart loop for the next profile evaluation
-
-        rprint(f"[grey50]Time taken for interested confirmation popup check: {time.time() - start_time:.3f} seconds[/grey50]")
-        # 2. Handle "Premium Ad" Popup (NEW)
-        start_time = time.time()
-        if handle_premium_ad_popup(driver,0): # Call the new handler
-            # Log already in handle_premium_ad_popup
-            # This popup usually dismisses to continue swiping, so we 'continue' the loop.
-            continue
-        rprint(f"[grey50]Time taken for premium ad popup check: {time.time() - start_time:.3f} seconds[/grey50]")
-
-        start_time = time.time()
-        if handle_superswipe_info_popup(driver,0): # Call the new handler
-            # This popup usually dismisses to continue swiping.
-            continue
-        rprint(f"[grey50]Time taken for superswipe info popup check: {time.time() - start_time:.3f} seconds[/grey50]")
-
-        start_time = time.time()
-        if handle_its_a_match_and_opening_moves_popup(driver,0):
-            continue 
-
-        rprint(f"[grey50]Time taken for its a match popup check: {time.time() - start_time:.3f} seconds[/grey50]")
-
-        start_time = time.time()
-        if handle_first_move_info_screen(driver,0):
-            # This screen dismissal usually returns to swiping.
-            continue
-        
-        rprint(f"[grey50]Time taken for first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
-
-        # if handle_they_saw_you_premium_popup(driver):
-        #     # This popup dismissal should return to swiping.
-        #     continue
-
-        start_time = time.time()
-        if handle_first_move_info_screen(driver,0):
-            # This screen dismissal usually returns to swiping.
-            continue
-        
-        rprint(f"[grey50]Time taken for second first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
-
-        start_time = time.time()
-        if handle_best_photo_popup(driver, timeout=0):
-            continue
-        rprint(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
-
         start_time = time.time()
         if handle_adjust_filters_prompt(driver,0): # Uses internal timeout
             rprint(f"[grey50]Time taken for adjust filters prompt check: {time.time() - start_time:.3f} seconds[/grey50]")
@@ -793,10 +758,61 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
                 return # Critical failure
             continue # Restart loop
 
+        start_time = time.time()
+        if handle_its_a_match_and_opening_moves_popup(driver,0):
+            continue 
+
+        rprint(f"[grey50]Time taken for its a match popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
         # 3. "Out of likes" or other critical blocking popups
         # IMPORTANT: Ensure is_popup_present uses SPECIFIC locators for the "out of likes" popup.
         start_time = time.time()
         if is_popup_present(driver): 
+            rprint("[green]Popup detected![/green]")
+
+            if handle_interested_confirmation_popup(driver,0):
+                rprint("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
+                time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
+                continue # Restart loop for the next profile evaluation
+
+            rprint(f"[grey50]Time taken for interested confirmation popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+            # 2. Handle "Premium Ad" Popup (NEW)
+            start_time = time.time()
+            if handle_premium_ad_popup(driver,0): # Call the new handler
+                # Log already in handle_premium_ad_popup
+                # This popup usually dismisses to continue swiping, so we 'continue' the loop.
+                continue
+            rprint(f"[grey50]Time taken for premium ad popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+            start_time = time.time()
+            if handle_superswipe_info_popup(driver,0): # Call the new handler
+                # This popup usually dismisses to continue swiping.
+                continue
+            rprint(f"[grey50]Time taken for superswipe info popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+            start_time = time.time()
+            if handle_first_move_info_screen(driver,0):
+                # This screen dismissal usually returns to swiping.
+                continue
+            
+            rprint(f"[grey50]Time taken for first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+            # if handle_they_saw_you_premium_popup(driver):
+            #     # This popup dismissal should return to swiping.
+            #     continue
+
+            start_time = time.time()
+            if handle_first_move_info_screen(driver,0):
+                # This screen dismissal usually returns to swiping.
+                continue
+            
+            rprint(f"[grey50]Time taken for second first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+            start_time = time.time()
+            if handle_best_photo_popup(driver, timeout=0):
+                continue
+            rprint(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+
             actions = ActionChains(driver)
             actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
             actions.w3c_actions.pointer_action.move_to_location(350, 1307)
@@ -804,6 +820,7 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             actions.w3c_actions.pointer_action.pause(0.2)
             actions.w3c_actions.pointer_action.release()
             actions.perform()
+            driver.back()
             if is_popup_present(driver): 
                 rprint("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
                 return # Stop swiping
