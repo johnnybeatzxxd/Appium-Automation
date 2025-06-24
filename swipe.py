@@ -76,18 +76,65 @@ BEST_PHOTO_POPUP_SAVE_AND_CLOSE_BUTTON_LOCATOR = (
 )
 
 PROFILE_CARD_LOADED_INDICATOR_XPATH = (
-    "//android.widget.FrameLayout[@resource-id='com.bumble.app:id/encountersStackContainer']"
-    "//androidx.compose.ui.platform.ComposeView/android.view.View/android.view.View[1]"
-    "//android.widget.TextView" # Looking for any TextView as a sign of content on the card
+    "//*[@resource-id='com.bumble.app:id/encountersGridItem_summaryContainer' or "
+    "@resource-id='com.bumble.app:id/encountersGridItem_aboutContainer']"
 )
 
 NAV_BAR_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/mainApp_navigationTabBar")
 # Bumble logo, typical of the swipe screen
 NAVBAR_LOGO_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/navbar_logo")
 
-def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load_timeout_sec=1.5):
+PROFILE_SCROLL_CONTAINER_LOCATOR = (
+
+    AppiumBy.ID,
+    "com.bumble.app:id/encountersGridProfile_list"
+)
+SELECTED_PEOPLE_TAB_LOCATOR = (
+    AppiumBy.XPATH,
+    "//android.view.ViewGroup[@content-desc='People' and @selected='true']"
+)
+
+OUT_OF_LIKES_HEADER_LOCATOR = (
+    AppiumBy.XPATH,
+    "//android.widget.TextView[@text='You’re all out of likes']"
+)
+def is_out_of_likes_popup_present(driver, timeout_sec=2):
     """
-    Quickly checks if Bumble's profile card is loaded and visible.
+    Checks if the "You're all out of likes" popup is currently visible on the screen.
+
+    This function attempts to find the unique header text of the popup. It uses a short
+    timeout because the popup should either be present immediately or not at all.
+
+    Args:
+        driver: The Appium WebDriver instance.
+        timeout_sec (int): The maximum number of seconds to wait for the popup to be detected.
+
+    Returns:
+        bool: True if the "out of likes" popup is found, False otherwise.
+    """
+    try:
+        # Use WebDriverWait to look for the element for a short duration.
+        # If the element is found within the timeout, the function proceeds.
+        WebDriverWait(driver, timeout_sec).until(
+            EC.presence_of_element_located(OUT_OF_LIKES_HEADER_LOCATOR)
+        )
+        rprint("[bold magenta]Detected 'Out of Likes' popup.[/bold magenta]")
+        return True
+    except TimeoutException:
+        # This is the expected outcome when the popup is not present.
+        # It's not an error, so we just return False.
+        rprint("[green]No 'Out of Likes' popup found. Proceeding normally.[/green]")
+        return False
+    except Exception as e:
+        # Catch any other unexpected errors during the check.
+        rprint(f"[red]An unexpected error occurred while checking for the 'Out of Likes' popup: {e}[/red]")
+        return False
+def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load_timeout_sec=2.0):
+    """
+    Checks if a profile is loaded by verifying two stable conditions:
+    1. The "People" tab is selected in the navigation bar.
+    2. The main scrollable profile container is present.
+    This method is resilient to vertical scrolling.
 
     Args:
         driver: The Appium WebDriver instance.
@@ -98,34 +145,45 @@ def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load
     Returns:
         bool: True if a profile is detected; False if app is stuck or out of profiles.
     """
-    rprint("[yellow]Checking if profile card is visible...[/yellow]")
+    rprint("[yellow]Checking for loaded profile using structural indicators...[/yellow]")
 
     for attempt in range(max_retries):
         try:
-            # Quick check for Discover page stability (optional)
-            WebDriverWait(driver, 0.5).until(EC.presence_of_element_located(NAV_BAR_LOCATOR))
-            WebDriverWait(driver, 0.5).until(EC.presence_of_element_located(NAVBAR_LOGO_LOCATOR))
-
-            # Fast detection of a loaded profile card
-            WebDriverWait(driver, load_timeout_sec).until(
-                EC.presence_of_element_located((AppiumBy.XPATH, PROFILE_CARD_LOADED_INDICATOR_XPATH))
+            # Step 1: Quickly confirm we are on the correct screen.
+            # This is a very fast and stable check.
+            WebDriverWait(driver, 0.5).until(
+                EC.presence_of_element_located(SELECTED_PEOPLE_TAB_LOCATOR)
             )
-            rprint(f"[green]Profile card loaded (attempt {attempt + 1}).[/green]")
+
+            # Step 2: Now, wait for the main profile content container to appear.
+            # This is the key check that works even when scrolled.
+            WebDriverWait(driver, load_timeout_sec).until(
+                EC.presence_of_element_located(PROFILE_SCROLL_CONTAINER_LOCATOR)
+            )
+
+            rprint(f"[green]Profile detected (attempt {attempt + 1}). Screen is correct and content container is present.[/green]")
             return True
 
         except TimeoutException:
-            rprint(f"[orange_red1]Attempt {attempt + 1}: No profile loaded in {load_timeout_sec}s.[/orange_red1]")
-            driver.back()
+            rprint(f"[orange_red1]Attempt {attempt + 1}: Profile not detected in {load_timeout_sec}s.[/orange_red1]")
+            
+            # Optional: Check if we are out of profiles. An "out of profiles" screen
+            # usually has a different, recognizable layout. You could add a check for it here.
+            # Example:
+            # if is_out_of_profiles_screen(driver):
+            #     rprint("[bold magenta]Detected 'Out of Profiles' screen.[/bold magenta]")
+            #     return False
+
             if attempt < max_retries - 1:
                 rprint(f"[grey50]Retrying after {wait_per_retry_sec}s...[/grey50]")
                 time.sleep(wait_per_retry_sec)
+                
         except Exception as e:
             rprint(f"[red]Unexpected error while checking profile load: {e}[/red]")
             return False
 
-    rprint("[red]Giving up — profile card not found after retries.[/red]")
+    rprint("[red]Giving up — profile not detected after retries.[/red]")
     return False
-
 def handle_best_photo_popup(driver, timeout=3):
     """
     Checks for the "Best Photo" feature popup and clicks "Save and close".
@@ -811,8 +869,12 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             start_time = time.time()
             if handle_best_photo_popup(driver, timeout=0):
                 continue
-            rprint(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
 
+            rprint(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+            if is_out_of_likes_popup_present(driver,0):
+                rprint("[red]Out of likes :([/red]")
+                rprint("[red]Aborting Swipe Because We Are Out Of Likes([/red]")
+                return
             actions = ActionChains(driver)
             actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
             actions.w3c_actions.pointer_action.move_to_location(350, 1307)
@@ -832,7 +894,7 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             # Decide what to do:
             # Option 1: End the entire realistic_swipe session
             return 
-        # time.sleep(random.uniform(0, 2))
+        time.sleep(random.uniform(0, 2))
         
         # 60% chance to check profile details
         if random.randint(1, 10) <= 6:
