@@ -270,47 +270,13 @@ def setup_appium_driver(connection_info: dict, server_url: str, system_port: int
     except Exception as e:
         rprint(f"[{device_name}] [red]Failed to initialize Appium driver: {str(e)}[/red]")
         return None
-def cleanup_phone():
-    """Cleanup function to stop the connected phone and close the driver."""
-    global connected_phone_id, driver, appium_service
-    
-    # Close the Appium driver if it exists
-    if driver:
-        try:
-            rprint("[yellow]Closing Appium driver...[/yellow]")
-            driver.quit()
-        except Exception as e:
-            rprint(f"[red]Error closing driver: {str(e)}[/red]")
-        finally:
-            driver = None
-    
-    # Stop the phone if it's connected
-    if connected_phone_id:
-        try:
-            rprint("[yellow]Stopping phone...[/yellow]")
-            stop_phone([connected_phone_id])
-            rprint("[green]Phone stopped successfully[/green]")
-        except Exception as e:
-            rprint(f"[red]Error stopping phone: {str(e)}[/red]")
-        finally:
-            connected_phone_id = None
-    
-    # Kill ADB server after cleanup
-    manage_adb_server("kill")
-
-    if appium_service and appium_service.is_running:
-        try:
-            rprint("[yellow]Stopping Appium server...[/yellow]")
-            appium_service.stop()
-            rprint("[green]Appium server stopped successfully.[/green]")
-        except Exception as e:
-            rprint(f"[red]Error stopping Appium server: {e}[/red]")
 
 def signal_handler(signum, frame):
-    """Handle interruption signals."""
-    rprint("\n[yellow]Interruption detected. Cleaning up...[/yellow]")
-    cleanup_phone()
-
+    """
+    Handle interruption signals gracefully.
+    The 'finally' blocks in the running functions are responsible for the actual cleanup.
+    """
+    rprint("\n\n[bold yellow]Interruption detected! Asking the running process to exit gracefully...[/bold yellow]")
     sys.exit(0)
 
 # Register signal handlers
@@ -404,31 +370,61 @@ def start_automation_all():
     manage_adb_server("start") # Start one clean server for all processes
 
     processes = []
-    appium_base_port = 4723
-    system_base_port = 8200 # Each UiAutomator2 instance needs a unique system port
+    try:
+        appium_base_port = 4723
+        system_base_port = 8200 # Each UiAutomator2 instance needs a unique system port
 
-    # 3. Create and start a process for each device
-    rprint("\n[bold blue]Starting automation processes...[/bold blue]")
-    for i, device in enumerate(devices):
-        appium_port = appium_base_port + (i * 2) # e.g., 4723, 4725, 4727
-        system_port = system_base_port + i       # e.g., 8200, 8201, 8202
+        # 3. Create and start a process for each device
+        rprint("\n[bold blue]Starting automation processes...[/bold blue]")
+        for i, device in enumerate(devices):
+            appium_port = appium_base_port + (i * 2) # e.g., 4723, 4725, 4727
+            system_port = system_base_port + i       # e.g., 8200, 8201, 8202
 
-        process = multiprocessing.Process(
-            target=run_automation_for_device,
-            args=(device, automation_type, appium_port, system_port, duration, probability)
-        )
-        processes.append(process)
-        process.start()
-        rprint(f"[green]Started process {process.pid} for device '{device['name']}' on Appium port {appium_port}[/green]")
-        time.sleep(5) # Stagger the process starts slightly to avoid resource contention
+            process = multiprocessing.Process(
+                target=run_automation_for_device,
+                args=(device, automation_type, appium_port, system_port, duration, probability)
+            )
+            processes.append(process)
+            process.start()
+            rprint(f"[green]Started process {process.pid} for device '{device['name']}' on Appium port {appium_port}[/green]")
+            time.sleep(5) # Stagger the process starts slightly to avoid resource contention
 
-    # 4. Wait for all processes to complete
-    rprint("\n[bold yellow]All automation processes are running. Waiting for them to complete...[/bold yellow]")
-    for process in processes:
-        process.join() # This will block until the process finishes
+        # 4. Wait for all processes to complete
+        rprint("\n[bold yellow]All automation processes are running. Waiting for them to complete...[/bold yellow]")
+        for process in processes:
+            process.join() # This will block until the process finishes
 
-    rprint("\n[bold green]All automation tasks have completed.[/bold green]")
-    manage_adb_server("kill") # Final cleanup
+        rprint("\n[bold green]All automation tasks have completed.[/bold green]")
+        manage_adb_server("kill") # Final cleanup
+    finally:
+        # This block is GUARANTEED to run, even on Ctrl+C
+        rprint("\n[bold yellow]Main process is shutting down...[/bold yellow]")
+
+        # 1. Find all remote phones that were part of this run.
+        remote_device_ids = [
+            device['id'] for device in devices if device.get("type") == "remote"
+        ]
+
+        # 2. If there are any, call the stop_phone API for all of them.
+        if remote_device_ids:
+            rprint(f"[yellow]Sending stop command for {len(remote_device_ids)} remote phone(s)...[/yellow]")
+            try:
+                # The stop_phone function likely accepts a list of IDs.
+                stop_phone(remote_device_ids)
+                rprint("[green]Stop command sent successfully.[/green]")
+            except Exception as e:
+                rprint(f"[bold red]CRITICAL: Failed to send stop command for phones: {e}[/bold red]")
+        
+        # 3. Now, proceed with terminating the local child processes.
+        rprint("[yellow]Terminating all child processes...[/yellow]")
+        for process in processes:
+            if process.is_alive():
+                rprint(f"[red]Terminating process {process.pid}...[/red]")
+                process.terminate()
+                process.join(timeout=5)
+        
+        rprint("[green]All child processes have been terminated.[/green]")
+        manage_adb_server("kill")
 
 def start_automation_specific():
     """Start automation for a single, user-selected device."""
@@ -496,21 +492,18 @@ def start_automation_specific():
             
         log("[green]Appium driver initialized successfully[/green]")
         
-        # --- EXECUTE AUTOMATION ---
-        # <<< FIX 2: PASS 'log=log' as a parameter to your automation functions >>>
-        # This makes it behave exactly like your `run_automation_for_device` function.
         if automation_type == "swiping":
-            if open_page(driver, "People"): 
+            if open_page(driver, "People",logger_func=log): 
                 realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration, logger_func=log)
         elif automation_type == "handle_matches":
-            if open_page(driver, "Chats"): 
-                process_new_matches(driver, 10, 5,)
+            if open_page(driver, "Chats",logger_func=log): 
+                process_new_matches(driver, 10, 5,logger_func=log)
         elif automation_type == "auto":
             for i in range(2):
-                if open_page(driver, "People", log): 
-                    realistic_swipe(driver, right_swipe_probability=7, duration_minutes=5, log=log)
-                if open_page(driver, "Chats", log): 
-                    process_new_matches(driver,10, 5, log=log)
+                if open_page(driver, "People", logger_func=log): 
+                    realistic_swipe(driver, right_swipe_probability=7, duration_minutes=5, logger_func=log)
+                if open_page(driver, "Chats",logger_func=log): 
+                    process_new_matches(driver,10, 5, logger_func=log)
             
     except Exception as e:
         # Use rprint here to be safe in case the 'log' function itself has an issue.
@@ -525,7 +518,11 @@ def start_automation_specific():
                 driver.quit()
                 rprint("[green]Appium driver closed.[/green]")
             except Exception as e:
-                rprint(f"[red]Error closing driver: {str(e)}[/red]")
+                if "A session is either terminated or not started" in str(e):
+                    rprint("[yellow]Could not quit driver (session was already closed, this is normal on exit).[/yellow]")
+                else:
+                    # If it's a different error, print it in red because it was unexpected.
+                    rprint(f"[red]An unexpected error occurred while closing the driver: {str(e)}[/red]")
         
         if appium_service and appium_service.is_running:
             try:
@@ -593,7 +590,6 @@ def show_menu():
             disable_phone()
         elif choice == "5":
             if Confirm.ask("Are you sure you want to exit?"):
-                cleanup_phone()
                 console.print("[yellow]Goodbye![/yellow]")
                 break
         
@@ -604,8 +600,6 @@ if __name__ == "__main__":
     try:
         show_menu()
     except KeyboardInterrupt:
-        cleanup_phone()
         console.print("\n[yellow]Program terminated by user[/yellow]")
     except Exception as e:
-        cleanup_phone()
         console.print(f"[red]An error occurred: {str(e)}[/red]")
