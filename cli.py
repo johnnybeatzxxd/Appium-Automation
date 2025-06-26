@@ -13,7 +13,7 @@ from rich.prompt import Prompt, Confirm
 from rich import print as rprint
 from rich.text import Text
 from typing import Callable 
-from geelark_api import get_available_phones, stop_phone
+from geelark_api import get_available_phones, stop_phone, start_phone
 from connection import connect_to_phone
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
@@ -33,6 +33,121 @@ console = Console()
 appium_process = None
 connected_phone_id = None
 
+def open_phones_manually():
+    """
+    Starts a persistent, interactive session for manually using cloud phones,
+    ensuring all phones are stopped on exit.
+    """
+    console.print("\n[bold green]Manual Phone Session Manager[/bold green]")
+    
+    remote_phones = get_available_phones(adb_enabled=False)
+    if not remote_phones:
+        rprint("[red]No remote phones available.[/red]")
+        return
+
+    display_phones(remote_phones)
+    
+    # <<< FIX 1: The prompt text is now shorter and mentions 'all' >>>
+    selection_str = Prompt.ask(
+        "Enter numbers to open (e.g. 1 3 4), 'all', or press Enter to cancel"
+    )
+
+    if not selection_str.strip():
+        rprint("[yellow]Operation cancelled.[/yellow]")
+        return
+
+    # --- Initial Selection Processing ---
+    ids_to_start = []
+    selected_phone_map = {} 
+
+    # <<< FIX 2: Added logic to handle the 'all' keyword >>>
+    if selection_str.strip().lower() == 'all':
+        rprint("[cyan]Selecting all available phones...[/cyan]")
+        ids_to_start = [phone['id'] for phone in remote_phones]
+        # Map all phones by their original index number (as a string)
+        selected_phone_map = {str(i + 1): phone for i, phone in enumerate(remote_phones)}
+    else:
+        # This is the original logic for processing individual numbers
+        user_choices = selection_str.strip().split()
+        for choice in user_choices:
+            if not choice.isdigit() or not (1 <= int(choice) <= len(remote_phones)):
+                rprint(f"[yellow]Warning: Invalid choice '{choice}'. Skipping.[/yellow]")
+                continue
+            
+            choice_idx = int(choice) - 1
+            phone_data = remote_phones[choice_idx]
+            ids_to_start.append(phone_data['id'])
+            selected_phone_map[choice] = phone_data
+
+    if not ids_to_start:
+        rprint("[red]No valid phones were selected. Aborting.[/red]")
+        return
+    # --- Session Management with Guaranteed Cleanup ---
+    # This list will hold the IDs of phones that were successfully started
+    active_phone_ids = []
+    try:
+        rprint(f"\n[cyan]Attempting to start {len(ids_to_start)} phone(s)...[/cyan]")
+        response = start_phone(ids_to_start)
+        
+        # Check the API response to see which phones ACTUALLY started
+        if response and response.get("code") == 0:
+            success_details = response.get("data", {}).get("successDetails", [])
+            active_phone_ids = [phone['id'] for phone in success_details]
+            if not active_phone_ids:
+                 rprint("[red]API call succeeded, but no phones were actually started. Check phone status on the platform.[/red]")
+                 return
+            rprint("[bold green]Success! The following phone screens should have opened:[/bold green]")
+        else:
+            rprint("[bold red]Failed to start phones. Please check the API response above.[/bold red]")
+            return
+
+        # This is the interactive shutdown loop
+        while active_phone_ids:
+            # Display the currently active phones
+            active_phones_table = Table(title="Currently Active Phones")
+            active_phones_table.add_column("No.", style="cyan")
+            active_phones_table.add_column("Name", style="green")
+            active_phones_table.add_column("ID", style="yellow")
+            
+            # Find the original menu number for each active phone
+            for original_number, phone_data in selected_phone_map.items():
+                if phone_data['id'] in active_phone_ids:
+                    active_phones_table.add_row(original_number, phone_data['name'], phone_data['id'])
+            
+            console.print(active_phones_table)
+
+            shutdown_choice_str = Prompt.ask(
+                "\nEnter numbers to shut down, type [bold]'all'[/bold] to stop everything, or press [bold]Ctrl+C[/bold] to exit"
+            )
+
+            ids_to_stop = []
+            if shutdown_choice_str.strip().lower() == 'all':
+                ids_to_stop = list(active_phone_ids) # Make a copy
+            else:
+                for choice in shutdown_choice_str.strip().split():
+                    # Check if the chosen number corresponds to a currently active phone
+                    if choice in selected_phone_map and selected_phone_map[choice]['id'] in active_phone_ids:
+                        ids_to_stop.append(selected_phone_map[choice]['id'])
+                    else:
+                        rprint(f"[yellow]Warning: '{choice}' is not a valid active phone number. Skipping.[/yellow]")
+
+            if ids_to_stop:
+                rprint(f"\n[cyan]Sending stop command for {len(ids_to_stop)} phone(s)...[/cyan]")
+                stop_phone(ids_to_stop)
+                # Remove the stopped phones from our active list
+                active_phone_ids = [pid for pid in active_phone_ids if pid not in ids_to_stop]
+
+        rprint("\n[bold green]All manually opened phones have been shut down.[/bold green]")
+
+    finally:
+        # This block is GUARANTEED to run on any exit, including Ctrl+C
+        if active_phone_ids:
+            rprint("\n[bold yellow]Exiting session. Ensuring all remaining active phones are stopped...[/bold yellow]")
+            try:
+                stop_phone(active_phone_ids)
+                rprint("[green]Cleanup complete. All phones stopped.[/green]")
+            except Exception as e:
+                rprint(f"[bold red]CRITICAL: Cleanup failed. Could not stop phones {active_phone_ids}. Please check your provider's dashboard manually! Error: {e}[/bold red]")
 
 def create_device_logger(device_name: str):
     """
@@ -576,9 +691,10 @@ def show_menu():
         console.print("2. Start Automation for Specific Device")
         console.print("3. List Available Devices")
         console.print("4. Disable Device")
-        console.print("5. Exit")
+        console.print("5. Open Phones for Manual Use")  
+        console.print("6. Exit")                      
         
-        choice = Prompt.ask("\nSelect an option", choices=["1", "2", "3", "4", "5"])
+        choice = Prompt.ask("\nSelect an option", choices=["1", "2", "3", "4", "5", "6"])
         
         if choice == "1":
             start_automation_all()
@@ -589,6 +705,10 @@ def show_menu():
         elif choice == "4":
             disable_phone()
         elif choice == "5":
+            # Call the new function
+            open_phones_manually()
+        elif choice == "6":
+            # The clean exit logic
             if Confirm.ask("Are you sure you want to exit?"):
                 console.print("[yellow]Goodbye![/yellow]")
                 break
