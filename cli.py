@@ -49,7 +49,7 @@ def open_phones_manually():
     
     # <<< FIX 1: The prompt text is now shorter and mentions 'all' >>>
     selection_str = Prompt.ask(
-        "Enter numbers to open (e.g. 1 3 4), 'all', or press Enter to cancel"
+        "Enter numbers separated by space to open (e.g. 1 3 4), 'all', or press Enter to cancel"
     )
 
     if not selection_str.strip():
@@ -209,17 +209,17 @@ def run_automation_for_device(device: Dict, automation_type: str, appium_port: i
         # 4. Execute the automation logic, passing the logger
         if automation_type == "swiping":
             # Pass the log function to your helper functions
-            if open_page(driver, "People", log): 
-                realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration, log=log)
+            if open_page(driver, "People", logger_func=log): 
+                realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration, logger_func=log)
         elif automation_type == "handle_matches":
-            if open_page(driver, "Chats", log): 
-                process_new_matches(driver, 10, 5, log=log)
+            if open_page(driver, "Chats", logger_func=log): 
+                process_new_matches(driver, 10, 5, logger_func=log)
         elif automation_type == "auto":
              for i in range(2):
-                if open_page(driver, "People", log): 
-                    realistic_swipe(driver, right_swipe_probability=7, duration_minutes=5, log=log)
-                if open_page(driver, "Chats", log): 
-                    process_new_matches(driver,10, 5, log=log)
+                if open_page(driver, "People", logger_func=log): 
+                    realistic_swipe(driver, right_swipe_probability=7, duration_minutes=5, logger_func=log)
+                if open_page(driver, "Chats", logger_func=log): 
+                    process_new_matches(driver,10, 5, logger_func=log)
 
         log("[green]Automation task finished.[/green]")
     except Exception as e:
@@ -458,17 +458,42 @@ def get_all_available_devices() -> List[Dict]:
     return remote_devices + local_devices
 
 def start_automation_all():
-    """Manages the parallel execution of automation across all devices."""
-    # 1. Get user input BEFORE starting processes
-    devices = get_all_available_devices() # Assuming get_all_available_devices() works
+    """Manages the parallel execution of automation across selected devices."""
+    # 1. Get all available devices
+    devices = get_all_available_devices()
     if not devices:
         rprint("[red]No available devices found![/red]")
         return
 
     display_phones(devices)
-    if not Confirm.ask("\nAre you sure you want to start automation for all displayed devices?"):
+    
+    # 2. Prompt for device selection
+    selection_str = Prompt.ask(
+        "Enter numbers separated by space to select devices (e.g. 1 3 4), 'all', or press Enter to cancel"
+    )
+
+    if not selection_str.strip():
+        rprint("[yellow]Operation cancelled.[/yellow]")
         return
 
+    # 3. Process selection
+    selected_devices = []
+    if selection_str.strip().lower() == 'all':
+        rprint("[cyan]Selecting all available devices...[/cyan]")
+        selected_devices = devices
+    else:
+        user_choices = selection_str.strip().split()
+        for choice in user_choices:
+            if not choice.isdigit() or not (1 <= int(choice) <= len(devices)):
+                rprint(f"[yellow]Warning: Invalid choice '{choice}'. Skipping.[/yellow]")
+                continue
+            selected_devices.append(devices[int(choice) - 1])
+
+    if not selected_devices:
+        rprint("[red]No valid devices were selected. Aborting.[/red]")
+        return
+
+    # 4. Get automation parameters
     automation_type = get_automation_type()
     duration = 5
     probability = 5
@@ -480,7 +505,7 @@ def start_automation_all():
         prob_str = Prompt.ask("Enter right swipe probability (1-10)", default="5")
         probability = int(prob_str) if prob_str.isdigit() and 1 <= int(prob_str) <= 10 else 5
 
-    # 2. Prepare for multiprocessing
+    # 5. Prepare for multiprocessing
     manage_adb_server("kill") # Kill any old server
     manage_adb_server("start") # Start one clean server for all processes
 
@@ -489,9 +514,9 @@ def start_automation_all():
         appium_base_port = 4723
         system_base_port = 8200 # Each UiAutomator2 instance needs a unique system port
 
-        # 3. Create and start a process for each device
+        # 6. Create and start a process for each selected device
         rprint("\n[bold blue]Starting automation processes...[/bold blue]")
-        for i, device in enumerate(devices):
+        for i, device in enumerate(selected_devices):
             appium_port = appium_base_port + (i * 2) # e.g., 4723, 4725, 4727
             system_port = system_base_port + i       # e.g., 8200, 8201, 8202
 
@@ -504,7 +529,7 @@ def start_automation_all():
             rprint(f"[green]Started process {process.pid} for device '{device['name']}' on Appium port {appium_port}[/green]")
             time.sleep(5) # Stagger the process starts slightly to avoid resource contention
 
-        # 4. Wait for all processes to complete
+        # 7. Wait for all processes to complete
         rprint("\n[bold yellow]All automation processes are running. Waiting for them to complete...[/bold yellow]")
         for process in processes:
             process.join() # This will block until the process finishes
@@ -517,7 +542,7 @@ def start_automation_all():
 
         # 1. Find all remote phones that were part of this run.
         remote_device_ids = [
-            device['id'] for device in devices if device.get("type") == "remote"
+            device['id'] for device in selected_devices if device.get("type") == "remote"
         ]
 
         # 2. If there are any, call the stop_phone API for all of them.
@@ -687,7 +712,7 @@ def show_menu():
         clear_screen()
         console.print("[bold blue]Phone Automation Dashboard[/bold blue]")
         console.print("\n[bold]Available Options:[/bold]")
-        console.print("1. Start Automation for All Devices")
+        console.print("1. Start Automation for Multiple Devices")
         console.print("2. Start Automation for Specific Device")
         console.print("3. List Available Devices")
         console.print("4. Disable Device")
