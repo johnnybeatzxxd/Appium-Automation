@@ -9,7 +9,8 @@ from selenium.common.exceptions import TimeoutException, StaleElementReferenceEx
 from rich import print as rprint
 from rich.console import Console
 from helper import open_page
-
+import logging
+log = rprint
 # Initialize rich console for better formatting
 console = Console()
 
@@ -61,18 +62,18 @@ def is_beeline_card_currently_visible(driver, matches_rv_element):
         # inside the passed RecyclerView element.
         beeline_inner_button = matches_rv_element.find_element(AppiumBy.ID, BEELINE_CARD_INNER_BUTTON_ID)
         if beeline_inner_button.is_displayed():
-            rprint("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button IS visible.[/grey50]")
+            log("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button IS visible.[/grey50]")
             return True
-        # rprint("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button found but not displayed.[/grey50]")
+        # log("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button found but not displayed.[/grey50]")
         return False # Found but not displayed
     except NoSuchElementException:
-        # rprint("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button NOT found.[/grey50]")
+        # log("[grey50]DEBUG (Beeline Visibility): Beeline card's inner button NOT found.[/grey50]")
         return False # Beeline card not present in the current view of the RV
     except Exception as e:
-        rprint(f"[red]✗[/red] Error in is_beeline_card_currently_visible: {e}")
+        log(f"[red]✗[/red] Error in is_beeline_card_currently_visible: {e}")
         return False # Err on the side of caution
 
-def is_on_chats_list_page(driver, timeout=5):
+def is_on_chats_list_page(driver, timeout=10):
     try:
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(YOUR_MATCHES_TITLE_LOCATOR)
@@ -80,10 +81,10 @@ def is_on_chats_list_page(driver, timeout=5):
         WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(MAIN_CHAT_LIST_RV_LOCATOR)
         )
-        rprint("[green]✓[/green] Verified on Chats list page")
+        log("[green]✓[/green] Verified on Chats list page")
         return True
     except TimeoutException:
-        rprint("[red]✗[/red] Not on Chats list page (timed out waiting for elements)")
+        log("[red]✗[/red] Not on Chats list page (timed out waiting for elements)")
         return False
 
 def handle_opening_move_screen(driver, timeout=5):
@@ -94,18 +95,18 @@ def handle_opening_move_screen(driver, timeout=5):
                 EC.presence_of_element_located(OPENING_MOVE_TITLE_TEXT_LOCATOR)
             )
         )
-        rprint("[yellow]ℹ[/yellow] 'Opening Move' screen detected")
+        log("[yellow]ℹ[/yellow] 'Opening Move' screen detected")
         reply_button = WebDriverWait(driver, timeout).until(
             EC.element_to_be_clickable(OPENING_MOVE_REPLY_BUTTON_LOCATOR)
         )
         reply_button.click()
-        rprint("[green]✓[/green] Clicked 'Reply' on the 'Opening Move' screen")
+        log("[green]✓[/green] Clicked 'Reply' on the 'Opening Move' screen")
         time.sleep(random.uniform(1.0, 2.0))
         return True
     except TimeoutException:
         return False
     except Exception as e:
-        rprint(f"[red]✗[/red] Error handling 'Opening Move' screen: {e}")
+        log(f"[red]✗[/red] Error handling 'Opening Move' screen: {e}")
         return False
 
 def is_on_individual_chat_page(driver, user_name_for_verification=None, timeout=10):
@@ -113,7 +114,7 @@ def is_on_individual_chat_page(driver, user_name_for_verification=None, timeout=
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(CHAT_MESSAGE_INPUT_LOCATOR)
         )
-        rprint("[green]✓[/green] Verified on individual chat page (message input found)")
+        log("[green]✓[/green] Verified on individual chat page (message input found)")
 
         if user_name_for_verification:
             try:
@@ -123,16 +124,16 @@ def is_on_individual_chat_page(driver, user_name_for_verification=None, timeout=
                 toolbar_title_text = toolbar_title_element.text
                 expected_name_part = user_name_for_verification.split(',')[0].split(' ')[0]
                 if expected_name_part.lower() in toolbar_title_text.lower():
-                    rprint(f"[green]✓[/green] Verified chat toolbar title contains '{expected_name_part}'")
+                    log(f"[green]✓[/green] Verified chat toolbar title contains '{expected_name_part}'")
                 else:
-                    rprint(f"[yellow]⚠[/yellow] Chat toolbar title '{toolbar_title_text}' doesn't strongly match expected '{expected_name_part}'")
+                    log(f"[yellow]⚠[/yellow] Chat toolbar title '{toolbar_title_text}' doesn't strongly match expected '{expected_name_part}'")
             except TimeoutException:
-                rprint("[yellow]⚠[/yellow] Chat toolbar title element not found for secondary verification")
+                log("[yellow]⚠[/yellow] Chat toolbar title element not found for secondary verification")
             except Exception as e_detail:
-                rprint(f"[yellow]⚠[/yellow] Error during chat toolbar title verification: {e_detail}")
+                log(f"[yellow]⚠[/yellow] Error during chat toolbar title verification: {e_detail}")
         return True
     except TimeoutException:
-        rprint("[red]✗[/red] Not on individual chat page (timed out waiting for chat input)")
+        log("[red]✗[/red] Not on individual chat page (timed out waiting for chat input)")
         return False
 
 def send_opening_message(driver, match_name):
@@ -140,7 +141,7 @@ def send_opening_message(driver, match_name):
     Types and sends an opening message by sending the whole string at once.
     Uses the specific resource-id for the send button.
     """
-    rprint(f"[blue]→[/blue] Attempting to send opening message to {match_name}")
+    log(f"[blue]→[/blue] Attempting to send opening message to {match_name}")
     try:
         # Wait for the message input field to be present and clickable
         message_input = WebDriverWait(driver, 10).until(
@@ -187,12 +188,12 @@ def send_opening_message(driver, match_name):
         # Clear placeholder text like "Aa" if present
         current_text_in_input = message_input.text
         if current_text_in_input and (current_text_in_input.lower() == "aa" or current_text_in_input.lower() == "send a message..."):
-            rprint(f"[yellow]ℹ[/yellow] Clearing placeholder input text: '{current_text_in_input}'")
+            log(f"[yellow]ℹ[/yellow] Clearing placeholder input text: '{current_text_in_input}'")
             message_input.clear()
             time.sleep(0.3) # Pause after clear
 
         # Send the entire message
-        rprint(f"[blue]→[/blue] Typing message: '{message_to_send}'")
+        log(f"[blue]→[/blue] Typing message: '{message_to_send}'")
         message_input.send_keys(message_to_send)
         
         # Pause after typing, before attempting to send
@@ -205,20 +206,20 @@ def send_opening_message(driver, match_name):
                 EC.element_to_be_clickable(CHAT_SEND_BUTTON_LOCATOR) # Using the new ID-based locator
             )
             send_button.click()
-            rprint("[green]✓[/green] Message SENT.")
+            log("[green]✓[/green] Message SENT.")
         except TimeoutException:
-            rprint("[red]✗[/red] Send button (ID: com.bumble.app:id/chatInput_button_send) not found or not clickable after typing.")
-            rprint("[grey50]DEBUG: Page source at send button failure:\n" + driver.page_source[:3000]) # Log some source
+            log("[red]✗[/red] Send button (ID: com.bumble.app:id/chatInput_button_send) not found or not clickable after typing.")
+            log("[grey50]DEBUG: Page source at send button failure:\n" + driver.page_source[:3000]) # Log some source
             return False
 
         time.sleep(random.uniform(1.0, 2.5)) # Pause after sending
         return True
 
     except TimeoutException:
-        rprint(f"[red]✗[/red] Could not find message input field for {match_name}.")
+        log(f"[red]✗[/red] Could not find message input field for {match_name}.")
         return False
     except Exception as e:
-        rprint(f"[red]✗[/red] Unexpected error while sending message to {match_name}: {e}")
+        log(f"[red]✗[/red] Unexpected error while sending message to {match_name}: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -230,11 +231,11 @@ def navigate_back_to_chats_list(driver, initial_back_presses=2, extra_back_press
     If so, performs extra back presses before final verification.
     """
     total_presses_made = 0
-    rprint(f"[blue]→[/blue] Navigating back to Chats list...")
+    log(f"[blue]→[/blue] Navigating back to Chats list...")
 
     # Perform initial back presses
     for i in range(initial_back_presses):
-        rprint(f"[blue]→[/blue] Performing back press #{total_presses_made + 1}...")
+        log(f"[blue]→[/blue] Performing back press #{total_presses_made + 1}...")
         driver.back()
         total_presses_made += 1
         # Shorter delay between these initial back presses
@@ -242,10 +243,10 @@ def navigate_back_to_chats_list(driver, initial_back_presses=2, extra_back_press
         
         # Optional: Check if already on chats list after each press to exit early
         if is_on_chats_list_page(driver, timeout=1):
-            rprint(f"[green]✓[/green] Returned to Chats list page after {total_presses_made} back press(es).")
+            log(f"[green]✓[/green] Returned to Chats list page after {total_presses_made} back press(es).")
             return True
 
-    rprint(f"[blue]→[/blue] Performed {total_presses_made} initial back press(es). Checking current screen...")
+    log(f"[blue]→[/blue] Performed {total_presses_made} initial back press(es). Checking current screen...")
 
     # Check if still on a chat-like screen (e.g., regular chat, "24 hours" banner visible)
     # We can use is_on_individual_chat_page or a more specific check for the banner
@@ -255,45 +256,45 @@ def navigate_back_to_chats_list(driver, initial_back_presses=2, extra_back_press
         WebDriverWait(driver, 2).until(
             EC.presence_of_element_located(CHAT_24_HOURS_BANNER_TEXT_LOCATOR)
         )
-        rprint("[yellow]⚠[/yellow] '24 hours to reply' banner still visible after initial back presses.")
+        log("[yellow]⚠[/yellow] '24 hours to reply' banner still visible after initial back presses.")
         still_on_chat_screen = True
     except TimeoutException:
         # If banner not found, check if it's still on a generic individual chat page
         if is_on_individual_chat_page(driver, timeout=2): # Short timeout for this check
-            rprint("[yellow]⚠[/yellow] Still on an individual chat page (input field found) after initial back presses.")
+            log("[yellow]⚠[/yellow] Still on an individual chat page (input field found) after initial back presses.")
             still_on_chat_screen = True
 
     if still_on_chat_screen:
-        rprint(f"[blue]→[/blue] Still on a chat-related screen. Performing {extra_back_press_if_needed} extra back press(es)...")
+        log(f"[blue]→[/blue] Still on a chat-related screen. Performing {extra_back_press_if_needed} extra back press(es)...")
         for i in range(extra_back_press_if_needed):
-            rprint(f"[blue]→[/blue] Performing extra back press #{i + 1} (total {total_presses_made + 1})...")
+            log(f"[blue]→[/blue] Performing extra back press #{i + 1} (total {total_presses_made + 1})...")
             driver.back()
             total_presses_made += 1
             time.sleep(random.uniform(0.8, 1.5)) # Longer pause after extra back presses
             
             if is_on_chats_list_page(driver, timeout=1):
-                rprint(f"[green]✓[/green] Returned to Chats list page after {total_presses_made} total back press(es).")
+                log(f"[green]✓[/green] Returned to Chats list page after {total_presses_made} total back press(es).")
                 return True
     
     # Final verification: Are we on the chats list page?
-    rprint(f"[blue]→[/blue] Total {total_presses_made} back press(es) performed. Final check for Chats list page...")
+    log(f"[blue]→[/blue] Total {total_presses_made} back press(es) performed. Final check for Chats list page...")
     if is_on_chats_list_page(driver, timeout=5):
-        rprint("[green]✓[/green] Successfully returned to Chats list page.")
+        log("[green]✓[/green] Successfully returned to Chats list page.")
         return True
     else:
         # Last resort: try to use the open_page function if direct back presses failed
-        rprint("[yellow]⚠[/yellow] Back presses did not land on Chats list. Attempting direct navigation via open_page('Chats')...")
+        log("[yellow]⚠[/yellow] Back presses did not land on Chats list. Attempting direct navigation via open_page('Chats')...")
         # Assuming open_page is imported from your helper module
         # from helper import open_page
         if 'open_page' in globals() and callable(globals()['open_page']): # Check if open_page is available
             if open_page(driver, "Chats"): # Ensure "Chats" is the correct content-desc for the tab
-                rprint("[green]✓[/green] Successfully navigated to Chats page using open_page.")
+                log("[green]✓[/green] Successfully navigated to Chats page using open_page.")
                 return True
             else:
-                rprint("[red]✗[/red] Failed to return to Chats list page even with open_page.")
+                log("[red]✗[/red] Failed to return to Chats list page even with open_page.")
                 return False
         else:
-            rprint("[red]✗[/red] Failed to return to Chats list page. (open_page function not available for fallback).")
+            log("[red]✗[/red] Failed to return to Chats list page. (open_page function not available for fallback).")
             return False
 
 def get_screen_dimensions(driver):
@@ -303,11 +304,11 @@ def get_screen_dimensions(driver):
         width = window_size.get('width')
         height = window_size.get('height')
         if width is None or height is None:
-            rprint("[yellow]⚠[/yellow] Could not get window dimensions, using defaults.")
+            log("[yellow]⚠[/yellow] Could not get window dimensions, using defaults.")
             return 1080, 1920 # Example defaults
         return int(width), int(height)
     except Exception as e:
-        rprint(f"[red]✗[/red] Error getting screen dimensions: {e}")
+        log(f"[red]✗[/red] Error getting screen dimensions: {e}")
         return 1080, 1920 # Fallback
 
 def perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction="left"):
@@ -326,7 +327,7 @@ def perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, prefer
     """
     screen_width, screen_height = get_screen_dimensions(driver)
     if not screen_width or not screen_height:
-        rprint("[red]✗[/red] Cannot perform scroll, screen dimensions unknown.")
+        log("[red]✗[/red] Cannot perform scroll, screen dimensions unknown.")
         return False
 
     try:
@@ -352,14 +353,14 @@ def perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, prefer
             # Start near the right edge of the element, end near the left
             start_x = location['x'] + int(size['width'] * random.uniform(0.75, 0.85)) # e.g., 80%
             end_x = start_x - swipe_pixel_distance
-            rprint(f"[grey50]Attempting to scroll content LEFT (revealing right items)[/grey50]")
+            log(f"[grey50]Attempting to scroll content LEFT (revealing right items)[/grey50]")
         elif scroll_direction == "right": # Swipe from Left-to-Right (reveals items on the Left)
             # Start near the left edge of the element, end near the right
             start_x = location['x'] + int(size['width'] * random.uniform(0.15, 0.25)) # e.g., 20%
             end_x = start_x + swipe_pixel_distance
-            rprint(f"[grey50]Attempting to scroll content RIGHT (revealing left items)[/grey50]")
+            log(f"[grey50]Attempting to scroll content RIGHT (revealing left items)[/grey50]")
         else:
-            rprint(f"[yellow]⚠[/yellow] Unknown scroll direction '{scroll_direction}', defaulting to scroll left.")
+            log(f"[yellow]⚠[/yellow] Unknown scroll direction '{scroll_direction}', defaulting to scroll left.")
             start_x = location['x'] + int(size['width'] * 0.8)
             end_x = start_x - swipe_pixel_distance # Default to scroll left
 
@@ -377,13 +378,13 @@ def perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, prefer
 
         # If element is too narrow or swipe distance is too small, it might not scroll
         if abs(start_x - end_x) < int(screen_width * 0.1): # Less than 10% of screen width is too small
-            rprint(f"[yellow]⚠[/yellow] Calculated swipe distance ({abs(start_x - end_x)}px) might be too small for a reliable scroll. Element width: {size['width']}.")
+            log(f"[yellow]⚠[/yellow] Calculated swipe distance ({abs(start_x - end_x)}px) might be too small for a reliable scroll. Element width: {size['width']}.")
             # Could potentially abort or try a screen-based swipe as a fallback here if needed.
             # For now, we proceed with the calculated small swipe.
 
         duration_ms = random.randint(300, 600) # Randomize duration
         
-        rprint(f"[grey50]Scrolling matches list: from ({start_x},{element_y_center}) to ({end_x},{element_y_center}), duration: ~{duration_ms}ms[/grey50]")
+        log(f"[grey50]Scrolling matches list: from ({start_x},{element_y_center}) to ({end_x},{element_y_center}), duration: ~{duration_ms}ms[/grey50]")
         
         # Using driver.swipe for simplicity, can be replaced with ActionChains if more control is needed
         driver.swipe(start_x, element_y_center, end_x, element_y_center, duration_ms)
@@ -391,25 +392,29 @@ def perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, prefer
         time.sleep(random.uniform(1.0, 2.0)) # Wait for scroll to complete and UI to settle
         return True
     except Exception as e:
-        rprint(f"[red]✗[/red] Error during horizontal scroll on matches list: {e}")
+        log(f"[red]✗[/red] Error during horizontal scroll on matches list: {e}")
         return False
 
 
 # --- Main Processing Logic ---
 def process_new_matches(driver, 
                         max_total_matches_to_process_this_run=None, 
-                        max_consecutive_empty_scrolls=3):
+                        max_consecutive_empty_scrolls=3,
+                        logger_func: logging.Logger = rprint):
     """
     Scrolls the "Your matches" list. If Beeline card is visible, scrolls left.
     Otherwise, scrolls randomly. Picks one new, non-expired match and processes it.
     """
+    global log
+    log = logger_func
+
     if not is_on_chats_list_page(driver):
-        rprint("[red]✗[/red] Not starting on Chats list page. Aborting match processing.")
+        log("[red]✗[/red] Not starting on Chats list page. Aborting match processing.")
         return
 
-    rprint(f"[blue]→[/blue] Starting to process new matches by scrolling and random picking.")
+    log(f"[blue]→[/blue] Starting to process new matches by scrolling and random picking.")
     if max_total_matches_to_process_this_run is not None:
-        rprint(f"[blue]→[/blue] Overall limit for this run: {max_total_matches_to_process_this_run} matches.")
+        log(f"[blue]→[/blue] Overall limit for this run: {max_total_matches_to_process_this_run} matches.")
 
     grand_total_processed_this_run = 0
     attempted_matches_content_descs_session = set()
@@ -417,15 +422,15 @@ def process_new_matches(driver,
     max_overall_iterations = 25 
     
     for iteration_num in range(max_overall_iterations):
-        rprint(f"\n[cyan]--- Processing Iteration #{iteration_num + 1} ---[/cyan]")
+        log(f"\n[cyan]--- Processing Iteration #{iteration_num + 1} ---[/cyan]")
         
         if max_total_matches_to_process_this_run is not None and \
            grand_total_processed_this_run >= max_total_matches_to_process_this_run:
-            rprint(f"[yellow]ℹ[/yellow] Reached overall limit of {max_total_matches_to_process_this_run} matches processed.")
+            log(f"[yellow]ℹ[/yellow] Reached overall limit of {max_total_matches_to_process_this_run} matches processed.")
             break
 
         if not is_on_chats_list_page(driver, timeout=3):
-            rprint("[red]✗[/red] No longer on Chats list page. Aborting.")
+            log("[red]✗[/red] No longer on Chats list page. Aborting.")
             break
 
         try:
@@ -458,7 +463,7 @@ def process_new_matches(driver,
                         if desc and desc not in attempted_matches_content_descs_session:
                             new_active_processable_matches.append({'element': btn, 'desc': desc})
                 except StaleElementReferenceException:
-                    rprint("[yellow]⚠[/yellow] Stale element during filtering. Will retry iteration.")
+                    log("[yellow]⚠[/yellow] Stale element during filtering. Will retry iteration.")
                     new_active_processable_matches = "RETRY_ITERATION"
                     break
 
@@ -466,10 +471,10 @@ def process_new_matches(driver,
                 time.sleep(0.5); continue
             
             if not new_active_processable_matches:
-                rprint("[yellow]ℹ[/yellow] No new, active, processable matches found in the current view.")
+                log("[yellow]ℹ[/yellow] No new, active, processable matches found in the current view.")
                 consecutive_empty_or_all_expired_scrolls += 1
             else:
-                rprint(f"[blue]→[/blue] Found {len(new_active_processable_matches)} new, active, processable match(es) in current view.")
+                log(f"[blue]→[/blue] Found {len(new_active_processable_matches)} new, active, processable match(es) in current view.")
                 consecutive_empty_or_all_expired_scrolls = 0 # Reset counter since we found something
 
                 # --- Pick one random match to process ---
@@ -478,23 +483,23 @@ def process_new_matches(driver,
                 current_match_desc = match_to_process_this_iteration['desc']
                 attempted_matches_content_descs_session.add(current_match_desc)
                 
-                rprint(f"\n[magenta]--- Processing selected match: {current_match_desc} ---[/magenta]")
+                log(f"\n[magenta]--- Processing selected match: {current_match_desc} ---[/magenta]")
                 try:
                     current_match_element_to_click.click()
                     # (The rest of your processing logic: go to chat, send message, navigate back)
                     time.sleep(random.uniform(1.5, 2.5)) 
-                    if handle_opening_move_screen(driver): rprint("[green]✓[/green] Handled 'Opening Move' screen")
+                    if handle_opening_move_screen(driver): log("[green]✓[/green] Handled 'Opening Move' screen")
                     if is_on_individual_chat_page(driver, user_name_for_verification=current_match_desc):
                         if send_opening_message(driver, current_match_desc):
                             grand_total_processed_this_run += 1
-                            rprint(f"[green]✓[/green] Successfully processed and messaged {current_match_desc}")
+                            log(f"[green]✓[/green] Successfully processed and messaged {current_match_desc}")
                         if not navigate_back_to_chats_list(driver): return # Critical error
                     else:
-                        rprint(f"[red]✗[/red] Did not land on individual chat page for {current_match_desc}.")
+                        log(f"[red]✗[/red] Did not land on individual chat page for {current_match_desc}.")
                         if not navigate_back_to_chats_list(driver): return # Critical error
                     time.sleep(random.uniform(0.5, 1.5))
                 except Exception as click_err:
-                    rprint(f"[red]✗[/red] Error processing match {current_match_desc}: {click_err}. Skipping.")
+                    log(f"[red]✗[/red] Error processing match {current_match_desc}: {click_err}. Skipping.")
                     continue
 
             matches_rv_element = WebDriverWait(driver, 4).until(
@@ -502,7 +507,7 @@ def process_new_matches(driver,
             )
             # --- Scroll Logic for Next Iteration ---
             if consecutive_empty_or_all_expired_scrolls >= max_consecutive_empty_scrolls:
-                rprint(f"[yellow]⚠[/yellow] Reached {max_consecutive_empty_scrolls} consecutive views with no new active matches. Stopping exploration.")
+                log(f"[yellow]⚠[/yellow] Reached {max_consecutive_empty_scrolls} consecutive views with no new active matches. Stopping exploration.")
                 break
 
             if iteration_num < max_overall_iterations - 1:
@@ -512,30 +517,30 @@ def process_new_matches(driver,
                 scroll_direction_for_next = "random" 
                 if is_beeline_card_currently_visible(driver, matches_rv_element):
                     scroll_direction_for_next = "left" 
-                    rprint("[blue]→[/blue] Beeline card is visible, forcing scroll direction to LEFT.")
+                    log("[blue]→[/blue] Beeline card is visible, forcing scroll direction to LEFT.")
                 else:
-                    rprint("[blue]→[/blue] Beeline card not visible, next scroll direction will be RANDOM.")
+                    log("[blue]→[/blue] Beeline card not visible, next scroll direction will be RANDOM.")
                 
-                rprint(f"[blue]→[/blue] Performing horizontal scroll (preferred: {scroll_direction_for_next}) to find more...")
+                log(f"[blue]→[/blue] Performing horizontal scroll (preferred: {scroll_direction_for_next}) to find more...")
                 if not perform_horizontal_scroll_on_matches_list(driver, matches_rv_element, preferred_direction=scroll_direction_for_next):
-                    rprint("[red]✗[/red] Failed to scroll, cannot continue finding more matches.")
+                    log("[red]✗[/red] Failed to scroll, cannot continue finding more matches.")
                     break
             else:
-                rprint("[grey50]DEBUG: Max iterations reached, not scrolling further.[/grey50]")
+                log("[grey50]DEBUG: Max iterations reached, not scrolling further.[/grey50]")
 
         except TimeoutException:
-            rprint("[yellow]⚠[/yellow] Timeout: 'Your matches' RecyclerView not found. May be empty or page changed.")
+            log("[yellow]⚠[/yellow] Timeout: 'Your matches' RecyclerView not found. May be empty or page changed.")
             break 
         except StaleElementReferenceException:
-            rprint("[yellow]⚠[/yellow] StaleElementReferenceException in main loop. Retrying iteration.")
+            log("[yellow]⚠[/yellow] StaleElementReferenceException in main loop. Retrying iteration.")
             time.sleep(1)
             continue
         except Exception as e:
-            rprint(f"[red]✗[/red] Unexpected error in iteration #{iteration_num + 1}: {e}")
+            log(f"[red]✗[/red] Unexpected error in iteration #{iteration_num + 1}: {e}")
             import traceback; traceback.print_exc()
             break 
     
-    rprint(f"\n[bold green]✓ Finished processing matches. Total successfully messaged: {grand_total_processed_this_run}[/bold green]")
+    log(f"\n[bold green]✓ Finished processing matches. Total successfully messaged: {grand_total_processed_this_run}[/bold green]")
 if __name__ == "__main__":
     caps = {
         "platformName": "Android",
@@ -549,25 +554,25 @@ if __name__ == "__main__":
     driver = None
     try:
         options = UiAutomator2Options().load_capabilities(caps)
-        rprint("[blue]→[/blue] Connecting to Appium driver...")
+        log("[blue]→[/blue] Connecting to Appium driver...")
         driver = webdriver.Remote(appium_server_url, options=options)
-        rprint("[green]✓[/green] Driver connected")
+        log("[green]✓[/green] Driver connected")
         
-        rprint("[yellow]ℹ[/yellow] Please navigate to the 'Chats' tab in Bumble")
-        rprint("[yellow]ℹ[/yellow] Waiting for 10 seconds...")
+        log("[yellow]ℹ[/yellow] Please navigate to the 'Chats' tab in Bumble")
+        log("[yellow]ℹ[/yellow] Waiting for 10 seconds...")
         time.sleep(10)
 
         if is_on_chats_list_page(driver):
-            rprint("[green]✓[/green] Starting match processing")
+            log("[green]✓[/green] Starting match processing")
             process_new_matches(driver, max_matches_to_process=2)
         else:
-            rprint("[red]✗[/red] Not on Chats list page. Please check app state")
+            log("[red]✗[/red] Not on Chats list page. Please check app state")
 
-        rprint("\n[yellow]ℹ[/yellow] Test finished. Check console for detailed logs")
-        rprint("[yellow]ℹ[/yellow] Keeping app open for observation...")
+        log("\n[yellow]ℹ[/yellow] Test finished. Check console for detailed logs")
+        log("[yellow]ℹ[/yellow] Keeping app open for observation...")
         time.sleep(15)
     except Exception as e:
-        rprint(f"[red]✗[/red] Critical error in main test block: {e}")
+        log(f"[red]✗[/red] Critical error in main test block: {e}")
         import traceback
         traceback.print_exc()
         if driver:
@@ -576,10 +581,10 @@ if __name__ == "__main__":
                 driver.save_screenshot(f"chat_error_{ts}.png")
                 with open(f"chat_error_source_{ts}.xml", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
-                rprint(f"[green]✓[/green] Saved error debug info ({ts})")
+                log(f"[green]✓[/green] Saved error debug info ({ts})")
             except Exception as e_save:
-                rprint(f"[red]✗[/red] Could not save error debug info: {e_save}")
+                log(f"[red]✗[/red] Could not save error debug info: {e_save}")
     finally:
         if driver:
-            rprint("[blue]→[/blue] Quitting driver")
+            log("[blue]→[/blue] Quitting driver")
             driver.quit()

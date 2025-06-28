@@ -180,7 +180,7 @@ def get_adb_information(ids: list[str]) -> dict:
         print(f"Error getting ADB information: {str(e)}")
         return []
 
-def get_available_phones() -> list[dict]:
+def get_available_phones(adb_enabled=True) -> list[dict]:
     """
     Get a list of available phones based on their remark field.
     Phones are considered available if their remark doesn't contain 'inactive'.
@@ -212,10 +212,11 @@ def get_available_phones() -> list[dict]:
     # Get ADB info for available phones
     phone_ids = [phone["id"] for phone in available_phones]
     adb_info = get_adb_information(phone_ids)
-    
-    # Filter out phones where ADB is not enabled (code 49001)
-    return [phone for phone in available_phones 
-            if not any(adb["id"] == phone["id"] and adb["code"] == 49001 for adb in adb_info)]
+    if adb_enabled:    
+        # Filter out phones where ADB is not enabled (code 49001)
+        return [phone for phone in available_phones 
+                if not any(adb["id"] == phone["id"] and adb["code"] == 49001 for adb in adb_info)]
+    return available_phones
 
 def get_phone_status(ids: list[str]) -> dict:
     """

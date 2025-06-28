@@ -12,6 +12,9 @@ from helper import handle_adjust_filters_prompt
 from helper import adjust_age_filter_and_apply
 from helper import get_screen_dimensions
 from rich import print as rprint
+import logging
+
+log = rprint
 
 # Using a distinctive text on the ad screen for initial detection
 PREMIUM_AD_IDENTIFIER_TEXT_LOCATOR = (AppiumBy.XPATH, "//android.widget.TextView[@text=\"Find who you're looking for, faster\"]")
@@ -118,16 +121,16 @@ def is_out_of_likes_popup_present(driver, timeout_sec=2):
         WebDriverWait(driver, timeout_sec).until(
             EC.presence_of_element_located(OUT_OF_LIKES_HEADER_LOCATOR)
         )
-        rprint("[bold magenta]Detected 'Out of Likes' popup.[/bold magenta]")
+        log("[bold magenta]Detected 'Out of Likes' popup.[/bold magenta]")
         return True
     except TimeoutException:
         # This is the expected outcome when the popup is not present.
         # It's not an error, so we just return False.
-        rprint("[green]No 'Out of Likes' popup found. Proceeding normally.[/green]")
+        log("[green]No 'Out of Likes' popup found. Proceeding normally.[/green]")
         return False
     except Exception as e:
         # Catch any other unexpected errors during the check.
-        rprint(f"[red]An unexpected error occurred while checking for the 'Out of Likes' popup: {e}[/red]")
+        log(f"[red]An unexpected error occurred while checking for the 'Out of Likes' popup: {e}[/red]")
         return False
 def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load_timeout_sec=2.0):
     """
@@ -145,7 +148,7 @@ def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load
     Returns:
         bool: True if a profile is detected; False if app is stuck or out of profiles.
     """
-    rprint("[yellow]Checking for loaded profile using structural indicators...[/yellow]")
+    log("[yellow]Checking for loaded profile using structural indicators...[/yellow]")
 
     for attempt in range(max_retries):
         try:
@@ -161,28 +164,28 @@ def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load
                 EC.presence_of_element_located(PROFILE_SCROLL_CONTAINER_LOCATOR)
             )
 
-            rprint(f"[green]Profile detected (attempt {attempt + 1}). Screen is correct and content container is present.[/green]")
+            log(f"[green]Profile detected (attempt {attempt + 1}). Screen is correct and content container is present.[/green]")
             return True
 
         except TimeoutException:
-            rprint(f"[orange_red1]Attempt {attempt + 1}: Profile not detected in {load_timeout_sec}s.[/orange_red1]")
+            log(f"[orange_red1]Attempt {attempt + 1}: Profile not detected in {load_timeout_sec}s.[/orange_red1]")
             
             # Optional: Check if we are out of profiles. An "out of profiles" screen
             # usually has a different, recognizable layout. You could add a check for it here.
             # Example:
             # if is_out_of_profiles_screen(driver):
-            #     rprint("[bold magenta]Detected 'Out of Profiles' screen.[/bold magenta]")
+            #     log("[bold magenta]Detected 'Out of Profiles' screen.[/bold magenta]")
             #     return False
 
             if attempt < max_retries - 1:
-                rprint(f"[grey50]Retrying after {wait_per_retry_sec}s...[/grey50]")
+                log(f"[grey50]Retrying after {wait_per_retry_sec}s...[/grey50]")
                 time.sleep(wait_per_retry_sec)
                 
         except Exception as e:
-            rprint(f"[red]Unexpected error while checking profile load: {e}[/red]")
+            log(f"[red]Unexpected error while checking profile load: {e}[/red]")
             return False
 
-    rprint("[red]Giving up — profile not detected after retries.[/red]")
+    log("[red]Giving up — profile not detected after retries.[/red]")
     return False
 def handle_best_photo_popup(driver, timeout=3):
     """
@@ -200,7 +203,7 @@ def handle_best_photo_popup(driver, timeout=3):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(BEST_PHOTO_POPUP_IDENTIFIER_TEXT_LOCATOR)
         )
-        rprint("[yellow]'Best Photo' popup detected ('Put your best photo first').[/yellow]")
+        log("[yellow]'Best Photo' popup detected ('Put your best photo first').[/yellow]")
 
         # 2. If the popup is detected, find and click the "Save and close" button.
         save_and_close_button = WebDriverWait(driver, timeout).until(
@@ -208,23 +211,23 @@ def handle_best_photo_popup(driver, timeout=3):
         )
         
         action_delay = random.uniform(0.4, 0.8)
-        rprint(f"[yellow]Clicking 'Save and close' button in {action_delay:.2f} seconds...[/yellow]")
+        log(f"[yellow]Clicking 'Save and close' button in {action_delay:.2f} seconds...[/yellow]")
         time.sleep(action_delay)
         
         save_and_close_button.click()
-        rprint("[green]Clicked 'Save and close' on the 'Best Photo' popup.[/green]")
+        log("[green]Clicked 'Save and close' on the 'Best Photo' popup.[/green]")
         
         # Add a pause after clicking to allow the UI to dismiss and settle
         return True # Popup was handled
 
     except TimeoutException:
         # The popup was not found within the timeout period. This is normal.
-        # rprint("[grey50]Debug: 'Best Photo' popup not found.[/grey50]")
+        # log("[grey50]Debug: 'Best Photo' popup not found.[/grey50]")
         return False
     except Exception as e:
-        rprint(f"[red]An error occurred while handling the 'Best Photo' popup: {e}[/red]")
+        log(f"[red]An error occurred while handling the 'Best Photo' popup: {e}[/red]")
         # try:
-        #     rprint(f"[grey37]Page source on 'Best Photo' popup error:\n{driver.page_source[:2000]}[/grey37]")
+        #     log(f"[grey37]Page source on 'Best Photo' popup error:\n{driver.page_source[:2000]}[/grey37]")
         # except: pass
         return False
 
@@ -246,7 +249,7 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(THEY_SAW_YOU_POPUP_IDENTIFIER_TEXT_LOCATOR)
         )
-        rprint("[yellow]'They saw you, they're into you' Premium popup detected.[/yellow]")
+        log("[yellow]'They saw you, they're into you' Premium popup detected.[/yellow]")
 
         # 2. If the ad is detected, try to click the "Maybe later" button.
         try:
@@ -255,14 +258,14 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
             )
             
             action_delay = random.uniform(0.3, 0.6)
-            rprint(f"[yellow]Clicking 'Maybe later' in {action_delay:.2f} seconds...[/yellow]")
+            log(f"[yellow]Clicking 'Maybe later' in {action_delay:.2f} seconds...[/yellow]")
             time.sleep(action_delay)
             
             maybe_later_button.click()
-            rprint("[green]Clicked 'Maybe later' on 'They saw you' Premium popup.[/green]")
+            log("[green]Clicked 'Maybe later' on 'They saw you' Premium popup.[/green]")
 
         except TimeoutException:
-            rprint("[yellow]'Maybe later' button not found or clickable. Trying 'Close' button as fallback...[/yellow]")
+            log("[yellow]'Maybe later' button not found or clickable. Trying 'Close' button as fallback...[/yellow]")
             # Fallback to the "Close" button (top left)
             # Ensure THEY_SAW_YOU_POPUP_CLOSE_BUTTON_LOCATOR is accurate for this specific popup's close button.
             # The XML structure for the close button is: clickable View -> (View content-desc="Close", Button)
@@ -275,10 +278,10 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
                 EC.element_to_be_clickable(actual_close_button_locator)
             )
             action_delay = random.uniform(0.4, 1.1)
-            rprint(f"[yellow]Clicking top 'Close' button in {action_delay:.2f} seconds...[/yellow]")
+            log(f"[yellow]Clicking top 'Close' button in {action_delay:.2f} seconds...[/yellow]")
             time.sleep(action_delay)
             close_button.click()
-            rprint("[green]Clicked top 'Close' button on 'They saw you' Premium popup.[/green]")
+            log("[green]Clicked top 'Close' button on 'They saw you' Premium popup.[/green]")
         
         # Add a pause after clicking to allow the UI to dismiss the popup and settle
         
@@ -286,12 +289,12 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
 
     except TimeoutException:
         # The ad was not found within the timeout period. This is normal.
-        # rprint("[grey50]Debug: 'They saw you' Premium popup not found.[/grey50]")
+        # log("[grey50]Debug: 'They saw you' Premium popup not found.[/grey50]")
         return False
     except Exception as e:
-        rprint(f"[red]An error occurred while handling the 'They saw you' Premium popup: {e}[/red]")
+        log(f"[red]An error occurred while handling the 'They saw you' Premium popup: {e}[/red]")
         # try:
-        #     rprint(f"[grey37]Page source on 'They saw you' error:\n{driver.page_source[:2000]}[/grey37]")
+        #     log(f"[grey37]Page source on 'They saw you' error:\n{driver.page_source[:2000]}[/grey37]")
         # except: pass
         return False
 
@@ -317,7 +320,7 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(ITS_A_MATCH_SCREEN_IDENTIFIER_TEXT)
         )
-        rprint("[yellow]'It's a Match!' screen detected.[/yellow]")
+        log("[yellow]'It's a Match!' screen detected.[/yellow]")
         
         action_taken_on_match_screen = False # Flag to track if we did anything
 
@@ -331,20 +334,20 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 opening_moves_got_it_button = WebDriverWait(driver, 2).until(
                     EC.element_to_be_clickable(OPENING_MOVES_INFO_BOX_GOT_IT_BUTTON_LOCATOR)
                 )
-                rprint(f"[yellow]Found 'Opening Moves' info box. Clicking 'Got it'...")
+                log(f"[yellow]Found 'Opening Moves' info box. Clicking 'Got it'...")
                 opening_moves_got_it_button.click()
-                rprint("[green]Clicked 'Got it' on 'Opening Moves' info box.[/green]")
+                log("[green]Clicked 'Got it' on 'Opening Moves' info box.[/green]")
                 time.sleep(random.uniform(0.5, 1.0)) # Pause after this click
                 action_taken_on_match_screen = True
             except TimeoutException:
-                rprint("[grey50]Debug: 'Opening Moves' info box not found on 'It's a Match!' screen. Skipping its 'Got it'.[/grey50]")
+                log("[grey50]Debug: 'Opening Moves' info box not found on 'It's a Match!' screen. Skipping its 'Got it'.[/grey50]")
             except Exception as e_om:
-                rprint(f"[orange_red1]Minor error handling 'Opening Moves' info box: {e_om}. Proceeding.[/orange_red1]")
+                log(f"[orange_red1]Minor error handling 'Opening Moves' info box: {e_om}. Proceeding.[/orange_red1]")
 
             # 3. Type "hi" into the mini composer and send.
             message_sent_successfully = False
             try:
-                rprint("[yellow]Attempting to send message from 'It's a Match!' screen...[/yellow]")
+                log("[yellow]Attempting to send message from 'It's a Match!' screen...[/yellow]")
                 mini_composer_input = WebDriverWait(driver, timeout).until(
                     EC.element_to_be_clickable(MATCH_SCREEN_MINI_COMPOSER_INPUT_LOCATOR)
                 )
@@ -387,7 +390,7 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 ]
                 message_to_send = random.choice(opening_lines )
                 mini_composer_input.send_keys(message_to_send)
-                rprint(f"[green]Typed '{message_to_send}' into mini composer.[/green]")
+                log(f"[green]Typed '{message_to_send}' into mini composer.[/green]")
                 time.sleep(random.uniform(0.5, 1.0)) # Pause after typing
 
                 # The send icon becomes enabled after typing.
@@ -396,37 +399,37 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 )
                 # Double check if it's actually enabled, though element_to_be_clickable should cover this
                 if not send_icon.is_enabled():
-                    rprint("[orange_red1]Send icon found but reported as not enabled. Attempting click anyway.[/orange_red1]")
+                    log("[orange_red1]Send icon found but reported as not enabled. Attempting click anyway.[/orange_red1]")
                     # This might indicate an issue or a slight delay in UI update for enabled state.
 
                 send_icon.click()
-                rprint("[green]Clicked send icon.[/green]")
+                log("[green]Clicked send icon.[/green]")
                 message_sent_successfully = True
                 action_taken_on_match_screen = True
                 time.sleep(random.uniform(0.5, 1.0)) # Pause after sending
 
 
             except TimeoutException:
-                rprint("[red]Failed to find mini composer elements or send message on 'It's a Match!' screen.[/red]")
+                log("[red]Failed to find mini composer elements or send message on 'It's a Match!' screen.[/red]")
             except Exception as e_send:
-                rprint(f"[red]Error sending message from 'It's a Match!' screen: {e_send}[/red]")
+                log(f"[red]Error sending message from 'It's a Match!' screen: {e_send}[/red]")
 
             # 4. If sending "hi" failed AND fallback is enabled, try to close the screen.
             #    Or, if you ALWAYS want to close after sending, this logic changes.
             #    Current logic: Prioritize sending message. If that path fails, then consider closing.
             if not message_sent_successfully and fallback_to_close:
-                rprint("[yellow]Sending 'hi' failed or was skipped. Attempting to close 'It's a Match!' screen as fallback.[/yellow]")
+                log("[yellow]Sending 'hi' failed or was skipped. Attempting to close 'It's a Match!' screen as fallback.[/yellow]")
                 try:
                     main_close_button = WebDriverWait(driver, 2).until( # Shorter timeout for fallback close
                         EC.element_to_be_clickable(ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR)
                     )
                     main_close_button.click()
-                    rprint("[green]Clicked main 'Close' button to dismiss 'It's a Match!' screen (fallback).[/green]")
+                    log("[green]Clicked main 'Close' button to dismiss 'It's a Match!' screen (fallback).[/green]")
                     action_taken_on_match_screen = True
                     time.sleep(random.uniform(1.2, 2.2))
                 except Exception as e_close:
-                    rprint(f"[red]Failed to close 'It's a Match!' screen via 'Close' button during fallback: {e_close}[/red]")
-                    rprint("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
+                    log(f"[red]Failed to close 'It's a Match!' screen via 'Close' button during fallback: {e_close}[/red]")
+                    log("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
                     time.sleep(1.5)
                     action_taken_on_match_screen = True # Assume back action did something
 
@@ -434,7 +437,7 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 # If message was sent, we still need to get off this screen.
                 # Typically, after sending from this mini-composer, the screen might auto-dismiss
                 # or transition to the full chat. If it just stays on "It's a Match!", we need to close it.
-                rprint("[grey50]Message sent from 'It's a Match!'. Performing system back to return to swiping.[/grey50]")
+                log("[grey50]Message sent from 'It's a Match!'. Performing system back to return to swiping.[/grey50]")
                 time.sleep(random.uniform(0.3, 1.0))
                 action_taken_on_match_screen = True
 
@@ -446,20 +449,20 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                     EC.element_to_be_clickable(ITS_A_MATCH_MAIN_CLOSE_BUTTON_LOCATOR)
                 )
                 main_close_button.click()
-                rprint("[green]Clicked main 'Close' button to dismiss 'It's a Match!' screen (fallback).[/green]")
+                log("[green]Clicked main 'Close' button to dismiss 'It's a Match!' screen (fallback).[/green]")
                 action_taken_on_match_screen = True
                 time.sleep(random.uniform(1.2, 2.2))
             except Exception as e_close:
-                rprint(f"[red]Failed to close 'It's a Match!' screen via 'Close' button during fallback: {e_close}[/red]")
-                rprint("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
+                log(f"[red]Failed to close 'It's a Match!' screen via 'Close' button during fallback: {e_close}[/red]")
+                log("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
                 time.sleep(1.5)
                 action_taken_on_match_screen = True # Assume back action did something
-            rprint("[green]Nah Im Skipping This One.[/green]")
+            log("[green]Nah Im Skipping This One.[/green]")
     except TimeoutException:
         # The "It's a Match!" screen itself was not found.
         return False
     except Exception as e:
-        rprint(f"[red]An error occurred while handling the 'It's a Match!' screen: {e}[/red]")
+        log(f"[red]An error occurred while handling the 'It's a Match!' screen: {e}[/red]")
         return False
 
 def handle_first_move_info_screen(driver, timeout=1):
@@ -479,7 +482,7 @@ def handle_first_move_info_screen(driver, timeout=1):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(FIRST_MOVE_SCREEN_IDENTIFIER_TEXT_LOCATOR)
         )
-        rprint("[yellow]'First Move' info screen detected ('It's time to make your move').[/yellow]")
+        log("[yellow]'First Move' info screen detected ('It's time to make your move').[/yellow]")
 
         # 2. If the screen is detected, find and click the "Close" button.
         close_button = WebDriverWait(driver, timeout).until(
@@ -487,11 +490,11 @@ def handle_first_move_info_screen(driver, timeout=1):
         )
         
         action_delay = random.uniform(0.2, 0.6)
-        rprint(f"[yellow]Clicking 'Close' button on 'First Move' info screen in {action_delay:.2f} seconds...[/yellow]")
+        log(f"[yellow]Clicking 'Close' button on 'First Move' info screen in {action_delay:.2f} seconds...[/yellow]")
         time.sleep(action_delay)
         
         close_button.click()
-        rprint("[green]Clicked 'Close' on the 'First Move' info screen.[/green]")
+        log("[green]Clicked 'Close' on the 'First Move' info screen.[/green]")
         
         # Add a pause after clicking to allow the UI to dismiss and settle
         
@@ -499,12 +502,12 @@ def handle_first_move_info_screen(driver, timeout=1):
 
     except TimeoutException:
         # The screen was not found within the timeout period. This is normal.
-        # rprint("[grey50]Debug: 'First Move' info screen not found.[/grey50]")
+        # log("[grey50]Debug: 'First Move' info screen not found.[/grey50]")
         return False
     except Exception as e:
-        rprint(f"[red]An error occurred while handling the 'First Move' info screen: {e}[/red]")
+        log(f"[red]An error occurred while handling the 'First Move' info screen: {e}[/red]")
         # try:
-        #     rprint(f"[grey37]Page source on 'First Move' info screen error:\n{driver.page_source[:2000]}[/grey37]")
+        #     log(f"[grey37]Page source on 'First Move' info screen error:\n{driver.page_source[:2000]}[/grey37]")
         # except: pass
         return False
 
@@ -525,7 +528,7 @@ def handle_superswipe_info_popup(driver, timeout=1):
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(SUPERSWIPE_POPUP_IDENTIFIER_TEXT_LOCATOR)
         )
-        rprint("[yellow]SuperSwipe info/upsell popup detected ('Supercharge your chance to match').[/yellow]")
+        log("[yellow]SuperSwipe info/upsell popup detected ('Supercharge your chance to match').[/yellow]")
 
         # 2. If the popup is detected, find and click the "Got it" button.
         #    We could also try the "Close" button if "Got it" fails, but "Got it" is usually the primary dismissal.
@@ -535,23 +538,23 @@ def handle_superswipe_info_popup(driver, timeout=1):
             )
             
             action_delay = random.uniform(0.2, 0.6)
-            rprint(f"[yellow]Clicking 'Got it' in {action_delay:.2f} seconds...[/yellow]")
+            log(f"[yellow]Clicking 'Got it' in {action_delay:.2f} seconds...[/yellow]")
             time.sleep(action_delay)
             
             got_it_button.click()
-            rprint("[green]Clicked 'Got it' on the SuperSwipe info popup.[/green]")
+            log("[green]Clicked 'Got it' on the SuperSwipe info popup.[/green]")
 
         except TimeoutException:
-            rprint("[yellow]'Got it' button not immediately found or clickable. Trying 'Close' button as fallback...[/yellow]")
+            log("[yellow]'Got it' button not immediately found or clickable. Trying 'Close' button as fallback...[/yellow]")
             # Fallback to the "Close" button if "Got it" is not found/clickable
             close_button = WebDriverWait(driver, timeout).until(
                 EC.element_to_be_clickable(SUPERSWIPE_POPUP_CLOSE_BUTTON_LOCATOR)
             )
             action_delay = random.uniform(0.4, 1.1)
-            rprint(f"[yellow]Clicking 'Close' button in {action_delay:.2f} seconds...[/yellow]")
+            log(f"[yellow]Clicking 'Close' button in {action_delay:.2f} seconds...[/yellow]")
             time.sleep(action_delay)
             close_button.click()
-            rprint("[green]Clicked 'Close' button on the SuperSwipe info popup.[/green]")
+            log("[green]Clicked 'Close' button on the SuperSwipe info popup.[/green]")
             
         # Add a pause after clicking to allow the UI to dismiss the popup and settle
         
@@ -559,12 +562,12 @@ def handle_superswipe_info_popup(driver, timeout=1):
 
     except TimeoutException:
         # The popup was not found within the timeout period. This is normal.
-        # rprint("[grey50]Debug: SuperSwipe info popup not found.[/grey50]")
+        # log("[grey50]Debug: SuperSwipe info popup not found.[/grey50]")
         return False
     except Exception as e:
-        rprint(f"[red]An error occurred while handling the SuperSwipe info popup: {e}[/red]")
+        log(f"[red]An error occurred while handling the SuperSwipe info popup: {e}[/red]")
         # try:
-        #     rprint(f"[grey37]Page source on SuperSwipe info error:\n{driver.page_source[:2000]}[/grey37]")
+        #     log(f"[grey37]Page source on SuperSwipe info error:\n{driver.page_source[:2000]}[/grey37]")
         # except: pass
         return False
 def handle_premium_ad_popup(driver, timeout=1):
@@ -583,14 +586,14 @@ def handle_premium_ad_popup(driver, timeout=1):
             EC.element_to_be_clickable(PREMIUM_AD_MAYBE_LATER_BUTTON_LOCATOR)
         )
         action_delay = random.uniform(0.2, 0.5)
-        rprint(f"[yellow]Premium ad detected. Clicking in {action_delay:.2f}s...[/yellow]")
+        log(f"[yellow]Premium ad detected. Clicking in {action_delay:.2f}s...[/yellow]")
         time.sleep(action_delay)
         maybe_later_button.click()
         return True
     except TimeoutException:
         return False
     except Exception as e:
-        rprint(f"[red]Error in premium ad handler: {e}[/red]")
+        log(f"[red]Error in premium ad handler: {e}[/red]")
         return False
 
 def is_popup_present(driver):
@@ -620,14 +623,14 @@ def handle_interested_confirmation_popup(driver, timeout=1):
             EC.element_to_be_clickable((AppiumBy.ID, "android:id/button1"))
         )
         action_delay = random.uniform(0.2, 0.4)
-        rprint(f"[yellow]Popup 'Interested?' detected. Clicking YES in {action_delay:.2f}s...[/yellow]")
+        log(f"[yellow]Popup 'Interested?' detected. Clicking YES in {action_delay:.2f}s...[/yellow]")
         time.sleep(action_delay)
         yes_button.click()
         return True
     except TimeoutException:
         return False
     except Exception as e:
-        rprint(f"[red]Error in 'Interested?' handler: {e}[/red]")
+        log(f"[red]Error in 'Interested?' handler: {e}[/red]")
         return False
 
 
@@ -643,7 +646,7 @@ def vertical_scroll(driver, is_first_swipe=False):
     # time.sleep(random.uniform(0.2, 0.8))
     screen_width, screen_height = get_screen_dimensions(driver)
     if not screen_width or not screen_height:
-        rprint("[red]Failed to get screen dimensions for vertical scroll. Aborting scroll.[/red]")
+        log("[red]Failed to get screen dimensions for vertical scroll. Aborting scroll.[/red]")
         return
     # Perform vertical scroll with increased range
     start_y = int(screen_height * random.uniform(0.50, 0.70))
@@ -661,7 +664,7 @@ def vertical_scroll(driver, is_first_swipe=False):
     # Start X: somewhere in the middle 30% to 70% of screen width
     start_x = int(screen_width * random.uniform(0.30, 0.70))
     
-    rprint(f"[grey50]Vertical scroll: screen_h={screen_height}, start_y={start_y}, end_y={end_y}, start_x={start_x}[/grey50]")
+    log(f"[grey50]Vertical scroll: screen_h={screen_height}, start_y={start_y}, end_y={end_y}, start_x={start_x}[/grey50]")
 
     actions = ActionChains(driver)
     actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
@@ -688,7 +691,7 @@ def vertical_scroll(driver, is_first_swipe=False):
     actions.w3c_actions.pointer_action.move_to_location(start_x, end_y) # Ensure final point is reached
     actions.w3c_actions.pointer_action.release()
     actions.perform()
-    rprint(f"[grey50]Vertical scroll performed from ({start_x},{start_y}) to ({start_x},{end_y}).[/grey50]")
+    log(f"[grey50]Vertical scroll performed from ({start_x},{start_y}) to ({start_x},{end_y}).[/grey50]")
 
 def horizontal_swipe(driver, swipe_right=True):
     """
@@ -696,7 +699,7 @@ def horizontal_swipe(driver, swipe_right=True):
     """
     screen_width, screen_height = get_screen_dimensions(driver)
     if not screen_width or not screen_height:
-        rprint("[red]Failed to get screen dimensions for horizontal swipe. Aborting swipe.[/red]")
+        log("[red]Failed to get screen dimensions for horizontal swipe. Aborting swipe.[/red]")
         return
 
     # Start Y: Middle portion of the screen, slightly more constrained.
@@ -728,7 +731,7 @@ def horizontal_swipe(driver, swipe_right=True):
     end_y = start_y + int(screen_height * end_y_variation_percentage)
     end_y = max(int(screen_height*0.20), min(int(screen_height*0.80), end_y)) # Keep Y within 20-80% to avoid edges
     
-    rprint(f"[grey50]Horizontal swipe: screen_w={screen_width}, start_x={start_x} ({start_x_percentage*100:.1f}%), end_x={end_x}, dist_perc={swipe_distance_percentage*100:.1f}%[/grey50]")
+    log(f"[grey50]Horizontal swipe: screen_w={screen_width}, start_x={start_x} ({start_x_percentage*100:.1f}%), end_x={end_x}, dist_perc={swipe_distance_percentage*100:.1f}%[/grey50]")
 
     actions = ActionChains(driver)
     actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
@@ -782,9 +785,9 @@ def horizontal_swipe(driver, swipe_right=True):
     actions.perform()
     
     swipe_dir = "RIGHT" if swipe_right else "LEFT"
-    rprint(f"[grey50]Horizontal swipe {swipe_dir} performed (duration: ~{duration_ms}ms).[/grey50]")
+    log(f"[grey50]Horizontal swipe {swipe_dir} performed (duration: ~{duration_ms}ms).[/grey50]")
     time.sleep(random.uniform(0.1, 0.3)) # Reduced pause after swipe from 0.2-0.6 to 0.1-0.3ndle 
-def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
+def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5,logger_func: logging.Logger = rprint):
     """
     Perform realistic swipes on Bumble with profile checking behavior.
     
@@ -793,6 +796,8 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
         right_swipe_probability: Probability of swiping right (0-10)
         duration_minutes: How long to run the swiping session
     """
+    global log
+    log = logger_func
     end_time = time.time() + (duration_minutes * 60)
     
     while time.time() < end_time:
@@ -801,18 +806,18 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
 
         current_app = driver.current_package
         if current_app != "com.bumble.app":
-            rprint("[bold red]The app just closed![/bold red]")
+            log("[bold red]The app just closed![/bold red]")
             return
 
         start_time = time.time()
         if handle_adjust_filters_prompt(driver,0): # Uses internal timeout
-            rprint(f"[grey50]Time taken for adjust filters prompt check: {time.time() - start_time:.3f} seconds[/grey50]")
-            rprint("[yellow]'Adjust filters' prompt appeared. Attempting to modify filters.[/yellow]")
+            log(f"[grey50]Time taken for adjust filters prompt check: {time.time() - start_time:.3f} seconds[/grey50]")
+            log("[yellow]'Adjust filters' prompt appeared. Attempting to modify filters.[/yellow]")
             if adjust_age_filter_and_apply(driver): # Uses internal timeout
-                rprint("[green]Age filter adjusted. Continuing swipe session.[/green]")
+                log("[green]Age filter adjusted. Continuing swipe session.[/green]")
                 time.sleep(random.uniform(1.0, 2.0)) # Pause for UI to settle
             else:
-                rprint("[red]Failed to adjust age filter. Stopping swipe session.[/red]")
+                log("[red]Failed to adjust age filter. Stopping swipe session.[/red]")
                 return # Critical failure
             continue # Restart loop
 
@@ -820,40 +825,40 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
         if handle_its_a_match_and_opening_moves_popup(driver,0):
             continue 
 
-        rprint(f"[grey50]Time taken for its a match popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+        log(f"[grey50]Time taken for its a match popup check: {time.time() - start_time:.3f} seconds[/grey50]")
 
         # 3. "Out of likes" or other critical blocking popups
         # IMPORTANT: Ensure is_popup_present uses SPECIFIC locators for the "out of likes" popup.
         start_time = time.time()
         if is_popup_present(driver): 
-            rprint("[green]Popup detected![/green]")
+            log("[green]Popup detected![/green]")
 
             if handle_interested_confirmation_popup(driver,0):
-                rprint("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
+                log("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
                 time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
                 continue # Restart loop for the next profile evaluation
 
-            rprint(f"[grey50]Time taken for interested confirmation popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+            log(f"[grey50]Time taken for interested confirmation popup check: {time.time() - start_time:.3f} seconds[/grey50]")
             # 2. Handle "Premium Ad" Popup (NEW)
             start_time = time.time()
             if handle_premium_ad_popup(driver,0): # Call the new handler
                 # Log already in handle_premium_ad_popup
                 # This popup usually dismisses to continue swiping, so we 'continue' the loop.
                 continue
-            rprint(f"[grey50]Time taken for premium ad popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+            log(f"[grey50]Time taken for premium ad popup check: {time.time() - start_time:.3f} seconds[/grey50]")
 
             start_time = time.time()
             if handle_superswipe_info_popup(driver,0): # Call the new handler
                 # This popup usually dismisses to continue swiping.
                 continue
-            rprint(f"[grey50]Time taken for superswipe info popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+            log(f"[grey50]Time taken for superswipe info popup check: {time.time() - start_time:.3f} seconds[/grey50]")
 
             start_time = time.time()
             if handle_first_move_info_screen(driver,0):
                 # This screen dismissal usually returns to swiping.
                 continue
             
-            rprint(f"[grey50]Time taken for first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+            log(f"[grey50]Time taken for first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
 
             # if handle_they_saw_you_premium_popup(driver):
             #     # This popup dismissal should return to swiping.
@@ -864,16 +869,16 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
                 # This screen dismissal usually returns to swiping.
                 continue
             
-            rprint(f"[grey50]Time taken for second first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+            log(f"[grey50]Time taken for second first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
 
             start_time = time.time()
             if handle_best_photo_popup(driver, timeout=0):
                 continue
 
-            rprint(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+            log(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
             if is_out_of_likes_popup_present(driver,0):
-                rprint("[red]Out of likes :([/red]")
-                rprint("[red]Aborting Swipe Because We Are Out Of Likes([/red]")
+                log("[red]Out of likes :([/red]")
+                log("[red]Aborting Swipe Because We Are Out Of Likes([/red]")
                 return
             actions = ActionChains(driver)
             actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
@@ -884,13 +889,13 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5):
             actions.perform()
             driver.back()
             if is_popup_present(driver): 
-                rprint("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
+                log("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
                 return # Stop swiping
         
-        rprint(f"[grey50]Time taken for critical popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+        log(f"[grey50]Time taken for critical popup check: {time.time() - start_time:.3f} seconds[/grey50]")
 
         if not wait_for_profile_to_load(driver, max_retries=5, wait_per_retry_sec=3, load_timeout_sec=0):
-            rprint("[bold red]Profiles are not loading after multiple checks. Ending swipe attempts for now.[/bold red]")
+            log("[bold red]Profiles are not loading after multiple checks. Ending swipe attempts for now.[/bold red]")
             # Decide what to do:
             # Option 1: End the entire realistic_swipe session
             return 
@@ -933,23 +938,23 @@ if __name__ == "__main__":
         # Wait for app to load
         time.sleep(5)
         
-        rprint("[yellow]Testing vertical scroll...[/yellow]")
+        log("[yellow]Testing vertical scroll...[/yellow]")
         # Test vertical scroll
         vertical_scroll(driver, is_first_swipe=True)  # Test first swipe
         time.sleep(2)
         vertical_scroll(driver, is_first_swipe=False)  # Test normal swipe
         time.sleep(2)
         
-        rprint("[yellow]Testing horizontal swipes...[/yellow]")
+        log("[yellow]Testing horizontal swipes...[/yellow]")
         # Test horizontal swipes
         horizontal_swipe(driver, swipe_right=True)  # Test right swipe
         time.sleep(2)
         horizontal_swipe(driver, swipe_right=False)  # Test left swipe
         
-        rprint("[green]Tests completed successfully![/green]")
+        log("[green]Tests completed successfully![/green]")
         
     except Exception as e:
-        rprint(f"[red]An error occurred: {str(e)}[/red]")
+        log(f"[red]An error occurred: {str(e)}[/red]")
     
     finally:
         # Clean up
