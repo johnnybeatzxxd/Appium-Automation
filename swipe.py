@@ -101,6 +101,57 @@ OUT_OF_LIKES_HEADER_LOCATOR = (
     AppiumBy.XPATH,
     "//android.widget.TextView[@text='You’re all out of likes']"
 )
+
+LOADING_SKELETON_LOCATOR = (
+    AppiumBy.XPATH, 
+    "//androidx.compose.ui.platform.ComposeView/android.view.View/android.view.View"
+)
+
+PROFILE_SUMMARY_CONTAINER_LOCATOR = (AppiumBy.ID, "com.bumble.app:id/encountersGridItem_summaryContainer")
+
+def is_profile_loading(driver, timeout_sec=0.5):
+    """
+    Checks if the app is in the state of loading a new profile.
+
+    This is defined as being on the "People" tab BUT the final profile summary
+    container has NOT yet appeared.
+
+    Args:
+        driver: The Appium WebDriver instance.
+        timeout_sec (float): A very short time to wait for the check.
+
+    Returns:
+        bool: True if the app is currently loading a profile, False otherwise.
+    """
+    try:
+        # 1. First, quickly confirm we are on the correct "People" screen.
+        # If we aren't, then we definitely aren't loading a profile.
+        WebDriverWait(driver, 0.2).until(
+            EC.presence_of_element_located(SELECTED_PEOPLE_TAB_LOCATOR)
+        )
+
+        # 2. Now, attempt to find the loaded profile's main content container.
+        WebDriverWait(driver, timeout_sec).until(
+            EC.presence_of_element_located(PROFILE_SUMMARY_CONTAINER_LOCATOR)
+        )
+        
+        # If the line above SUCCEEDED, it means the profile is already loaded.
+        # Therefore, we are NOT in a loading state.
+        log("[grey50]Profile is already loaded, not in a loading state.[/grey50]")
+        return False
+
+    except TimeoutException:
+        # If the check for the profile summary container TIMED OUT, it means
+        # we are on the "People" tab but the content isn't there yet.
+        # THIS IS THE DEFINITION OF THE LOADING STATE.
+        log("[cyan]Profile content not found. App is currently in a loading state.[/cyan]")
+        return True
+    
+    except Exception as e:
+        # Any other error means something is wrong, so we are not loading.
+        log(f"[red]An unexpected error occurred while checking loading state: {e}[/red]")
+        return False
+
 def is_out_of_likes_popup_present(driver, timeout_sec=2):
     """
     Checks if the "You're all out of likes" popup is currently visible on the screen.
@@ -132,61 +183,46 @@ def is_out_of_likes_popup_present(driver, timeout_sec=2):
         # Catch any other unexpected errors during the check.
         log(f"[red]An unexpected error occurred while checking for the 'Out of Likes' popup: {e}[/red]")
         return False
-def wait_for_profile_to_load(driver, max_retries=2, wait_per_retry_sec=1.5, load_timeout_sec=2.0):
+
+def wait_for_profile_to_load(driver, load_timeout_sec=1.0):
     """
-    Checks if a profile is loaded by verifying two stable conditions:
+    Checks if a profile card is currently loaded and ready on the screen.
+    This function performs a SINGLE check without retries.
+
+    It verifies two conditions:
     1. The "People" tab is selected in the navigation bar.
     2. The main scrollable profile container is present.
-    This method is resilient to vertical scrolling.
 
     Args:
         driver: The Appium WebDriver instance.
-        max_retries (int): How many times to check for a loaded profile.
-        wait_per_retry_sec (float): Sleep time between retries (seconds).
-        load_timeout_sec (float): Max wait time per attempt for profile load.
+        load_timeout_sec (float): How long to wait for the elements to appear.
 
     Returns:
-        bool: True if a profile is detected; False if app is stuck or out of profiles.
+        bool: True if a profile is loaded, False otherwise.
     """
-    log("[yellow]Checking for loaded profile using structural indicators...[/yellow]")
+    try:
+        # Check 1: A very fast check to ensure we're on the right screen.
+        WebDriverWait(driver, 0.2).until(
+            EC.presence_of_element_located(SELECTED_PEOPLE_TAB_LOCATOR)
+        )
 
-    for attempt in range(max_retries):
-        try:
-            # Step 1: Quickly confirm we are on the correct screen.
-            # This is a very fast and stable check.
-            WebDriverWait(driver, 0.5).until(
-                EC.presence_of_element_located(SELECTED_PEOPLE_TAB_LOCATOR)
-            )
+        # Check 2: The main check for the profile content itself.
+        WebDriverWait(driver, load_timeout_sec).until(
+            EC.presence_of_element_located(PROFILE_SCROLL_CONTAINER_LOCATOR)
+        )
 
-            # Step 2: Now, wait for the main profile content container to appear.
-            # This is the key check that works even when scrolled.
-            WebDriverWait(driver, load_timeout_sec).until(
-                EC.presence_of_element_located(PROFILE_SCROLL_CONTAINER_LOCATOR)
-            )
+        # If both checks pass, the profile is considered loaded.
+        return True
 
-            log(f"[green]Profile detected (attempt {attempt + 1}). Screen is correct and content container is present.[/green]")
-            return True
+    except TimeoutException:
+        # This is the expected, normal result when a profile isn't loaded.
+        return False
+    
+    except Exception as e:
+        # Catch any other unexpected errors during the check.
+        log(f"[red]Unexpected error while checking for profile load: {e}[/red]")
+        return False
 
-        except TimeoutException:
-            log(f"[orange_red1]Attempt {attempt + 1}: Profile not detected in {load_timeout_sec}s.[/orange_red1]")
-            
-            # Optional: Check if we are out of profiles. An "out of profiles" screen
-            # usually has a different, recognizable layout. You could add a check for it here.
-            # Example:
-            # if is_out_of_profiles_screen(driver):
-            #     log("[bold magenta]Detected 'Out of Profiles' screen.[/bold magenta]")
-            #     return False
-
-            if attempt < max_retries - 1:
-                log(f"[grey50]Retrying after {wait_per_retry_sec}s...[/grey50]")
-                time.sleep(wait_per_retry_sec)
-                
-        except Exception as e:
-            log(f"[red]Unexpected error while checking profile load: {e}[/red]")
-            return False
-
-    log("[red]Giving up — profile not detected after retries.[/red]")
-    return False
 def handle_best_photo_popup(driver, timeout=3):
     """
     Checks for the "Best Photo" feature popup and clicks "Save and close".
@@ -442,7 +478,7 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 action_taken_on_match_screen = True
 
 
-            return action_taken_on_match_screen # Return true if we interacted with the match screen
+            return True
         else:
             try:
                 main_close_button = WebDriverWait(driver, 2).until( # Shorter timeout for fallback close
@@ -802,103 +838,139 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5,logger
     
     while time.time() < end_time:
         # Random delay between profiles (2-3 seconds)
-        start_time = time.time()
+        loading_start_time = time.time()
 
         current_app = driver.current_package
         if current_app != "com.bumble.app":
             log("[bold red]The app just closed![/bold red]")
             return
 
-        start_time = time.time()
-        if handle_adjust_filters_prompt(driver,0): # Uses internal timeout
-            log(f"[grey50]Time taken for adjust filters prompt check: {time.time() - start_time:.3f} seconds[/grey50]")
-            log("[yellow]'Adjust filters' prompt appeared. Attempting to modify filters.[/yellow]")
-            if adjust_age_filter_and_apply(driver): # Uses internal timeout
-                log("[green]Age filter adjusted. Continuing swipe session.[/green]")
-                time.sleep(random.uniform(1.0, 2.0)) # Pause for UI to settle
-            else:
-                log("[red]Failed to adjust age filter. Stopping swipe session.[/red]")
-                return # Critical failure
-            continue # Restart loop
+        if not wait_for_profile_to_load(driver, load_timeout_sec=1.0):
 
-        start_time = time.time()
-        if handle_its_a_match_and_opening_moves_popup(driver,0):
-            continue 
-
-        log(f"[grey50]Time taken for its a match popup check: {time.time() - start_time:.3f} seconds[/grey50]")
-
-        # 3. "Out of likes" or other critical blocking popups
-        # IMPORTANT: Ensure is_popup_present uses SPECIFIC locators for the "out of likes" popup.
-        start_time = time.time()
-        if is_popup_present(driver): 
-            log("[green]Popup detected![/green]")
-
-            if handle_interested_confirmation_popup(driver,0):
-                log("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
-                time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
-                continue # Restart loop for the next profile evaluation
-
-            log(f"[grey50]Time taken for interested confirmation popup check: {time.time() - start_time:.3f} seconds[/grey50]")
-            # 2. Handle "Premium Ad" Popup (NEW)
+            log("[yellow]Profiles are not loading. Doing a few checks[/yellow]")
             start_time = time.time()
-            if handle_premium_ad_popup(driver,0): # Call the new handler
-                # Log already in handle_premium_ad_popup
-                # This popup usually dismisses to continue swiping, so we 'continue' the loop.
-                continue
-            log(f"[grey50]Time taken for premium ad popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+            if handle_adjust_filters_prompt(driver,0): # Uses internal timeout
+                log(f"[grey50]Time taken for adjust filters prompt check: {time.time() - start_time:.3f} seconds[/grey50]")
+                log("[yellow]'Adjust filters' prompt appeared. Attempting to modify filters.[/yellow]")
+                if adjust_age_filter_and_apply(driver): # Uses internal timeout
+                    log("[green]Age filter adjusted. Continuing swipe session.[/green]")
+                    time.sleep(random.uniform(1.0, 2.0)) # Pause for UI to settle
+                else:
+                    log("[red]Failed to adjust age filter. Stopping swipe session.[/red]")
+                    return # Critical failure
+                continue # Restart loop
 
             start_time = time.time()
-            if handle_superswipe_info_popup(driver,0): # Call the new handler
-                # This popup usually dismisses to continue swiping.
-                continue
-            log(f"[grey50]Time taken for superswipe info popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+            if handle_its_a_match_and_opening_moves_popup(driver,0):
+                continue 
+            log(f"[grey50]Time taken for its a match popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+            # 3. "Out of likes" or other critical blocking popups
+            # IMPORTANT: Ensure is_popup_present uses SPECIFIC locators for the "out of likes" popup.
 
             start_time = time.time()
-            if handle_first_move_info_screen(driver,0):
-                # This screen dismissal usually returns to swiping.
-                continue
-            
-            log(f"[grey50]Time taken for first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
-
-            # if handle_they_saw_you_premium_popup(driver):
-            #     # This popup dismissal should return to swiping.
-            #     continue
-
-            start_time = time.time()
-            if handle_first_move_info_screen(driver,0):
-                # This screen dismissal usually returns to swiping.
-                continue
-            
-            log(f"[grey50]Time taken for second first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
-
-            start_time = time.time()
-            if handle_best_photo_popup(driver, timeout=0):
-                continue
-
-            log(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
-            if is_out_of_likes_popup_present(driver,0):
-                log("[red]Out of likes :([/red]")
-                log("[red]Aborting Swipe Because We Are Out Of Likes([/red]")
-                return
-            actions = ActionChains(driver)
-            actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
-            actions.w3c_actions.pointer_action.move_to_location(350, 1307)
-            actions.w3c_actions.pointer_action.pointer_down()
-            actions.w3c_actions.pointer_action.pause(0.2)
-            actions.w3c_actions.pointer_action.release()
-            actions.perform()
-            driver.back()
             if is_popup_present(driver): 
-                log("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
-                return # Stop swiping
-        
-        log(f"[grey50]Time taken for critical popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+                log("[green]Popup detected![/green]")
 
-        if not wait_for_profile_to_load(driver, max_retries=5, wait_per_retry_sec=3, load_timeout_sec=0):
-            log("[bold red]Profiles are not loading after multiple checks. Ending swipe attempts for now.[/bold red]")
-            # Decide what to do:
-            # Option 1: End the entire realistic_swipe session
-            return 
+                if handle_interested_confirmation_popup(driver,0):
+                    log("[green]Handled 'Interested?' popup. Moving to next profile cycle.[/green]")
+                    time.sleep(random.uniform(0.5, 1.5)) # Pause after handling
+                    continue # Restart loop for the next profile evaluation
+
+                log(f"[grey50]Time taken for interested confirmation popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+                # 2. Handle "Premium Ad" Popup (NEW)
+                start_time = time.time()
+                if handle_premium_ad_popup(driver,0): # Call the new handler
+                    # Log already in handle_premium_ad_popup
+                    # This popup usually dismisses to continue swiping, so we 'continue' the loop.
+                    continue
+                log(f"[grey50]Time taken for premium ad popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+                start_time = time.time()
+                if handle_superswipe_info_popup(driver,0): # Call the new handler
+                    # This popup usually dismisses to continue swiping.
+                    continue
+                log(f"[grey50]Time taken for superswipe info popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+                start_time = time.time()
+                if handle_first_move_info_screen(driver,0):
+                    # This screen dismissal usually returns to swiping.
+                    continue
+                
+                log(f"[grey50]Time taken for first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+                # if handle_they_saw_you_premium_popup(driver):
+                #     # This popup dismissal should return to swiping.
+                #     continue
+
+                start_time = time.time()
+                if handle_first_move_info_screen(driver,0):
+                    # This screen dismissal usually returns to swiping.
+                    continue
+                
+                log(f"[grey50]Time taken for second first move info screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+
+                start_time = time.time()
+                if handle_best_photo_popup(driver, timeout=0):
+                    continue
+
+                log(f"[grey50]Time taken for best photo popup screen check: {time.time() - start_time:.3f} seconds[/grey50]")
+                if is_out_of_likes_popup_present(driver,0):
+                    log("[red]Out of likes :([/red]")
+                    log("[red]Aborting Swipe Because We Are Out Of Likes([/red]")
+                    driver.back()
+                    return
+                # Press the popup button blindly
+                actions = ActionChains(driver)
+                actions.w3c_actions = ActionBuilder(driver, mouse=PointerInput(interaction.POINTER_TOUCH, "touch"))
+                actions.w3c_actions.pointer_action.move_to_location(350, 1307)
+                actions.w3c_actions.pointer_action.pointer_down()
+                actions.w3c_actions.pointer_action.pause(0.2)
+                actions.w3c_actions.pointer_action.release()
+                actions.perform()
+
+                log(f"[grey50]Time taken for critical popup check: {time.time() - start_time:.3f} seconds[/grey50]")
+                if not wait_for_profile_to_load(driver, load_timeout_sec=2.0):
+                    driver.back()
+                if not wait_for_profile_to_load(driver, load_timeout_sec=2.0):
+                    log("[red]Critical popup (likely 'Out of likes') detected by is_popup_present. Stopping swipe session.[/red]")
+                    return # Stop swiping
+                else:
+                    continue
+            # if not popup check if its loading
+            if is_profile_loading(driver,timeout_sec=1.0):
+                log(f"[grey50]The Page is Loading! lets Sleep for 4 sec and try again.[/grey50]")
+                max_retries = 5
+                wait_per_retry_sec = 4.0
+                profile_is_loaded = False
+
+                for attempt in range(max_retries):
+                    time.sleep(wait_per_retry_sec)
+                    if not is_profile_loading(driver,timeout_sec=1.0):
+                        log(f"[green]The Page Loaded![/green]")
+                        profile_is_loaded = True
+                        break
+                if not profile_is_loaded:
+                    log("[red]Stuck on Loading. Stopping swipe session.[/red]")
+                    return # Stop swiping
+                else:continue
+            else:
+                log("[red]Unhandled Page Showed up![/red]")
+                log("[red]Restarting the app...[/red]")
+                driver.terminate_app("com.bumble.app")
+                time.sleep(2)
+                driver.activate_app("com.bumble.app")
+                time.sleep(3)
+                if not wait_for_profile_to_load(driver,load_timeout_sec=1) and not is_popup_present(driver,load_timeout_sec=1) and not is_profile_loading(driver,load_timeout_sec=1):
+                    log("[red]The Account required Verification or Banned![/red]")
+                    log("[red]Terminating Swipe process![/red]")
+                    return
+                else:
+                    continue
+
+
+
+        log(f"[green]Time taken for Profile to load: {time.time() - loading_start_time:.3f} seconds[/green]")
         time.sleep(random.uniform(0, 2))
         
         # 60% chance to check profile details
