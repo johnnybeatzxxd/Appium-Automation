@@ -231,11 +231,8 @@ def get_current_screen_by_tab(driver: webdriver.Remote, timeout=5):
     """
     if not is_nav_bar_present(driver, timeout=max(1, timeout // 2)): # Use a portion of the main timeout
         log(f"[yellow]Debug (get_current_screen_by_tab): rain navigation bar ('{NAV_BAR_ID}') not found or not displayed.[/yellow]")
-        log(f"[yellow]Restarting Bumble ...[/yellow]")
-        driver.terminate_app("com.bumble.app")
-        time.sleep(2)
-        driver.activate_app("com.bumble.app")
-        time.sleep(3)
+        log(f"[yellow]Backing out..[/yellow]")
+        driver.back()
         if not is_nav_bar_present(driver, timeout=max(1, timeout // 2)): # Use a portion of the main timeout
             log(f"[yellow]Debug (get_current_screen_by_tab): Main navigation bar ('{NAV_BAR_ID}') not found or not displayed.[/yellow]")
             return "NAV_BAR_NOT_FOUND" # Specific return value for this case

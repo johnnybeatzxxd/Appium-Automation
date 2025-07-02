@@ -126,9 +126,9 @@ def is_profile_loading(driver, timeout_sec=0.5):
     try:
         # 1. First, quickly confirm we are on the correct "People" screen.
         # If we aren't, then we definitely aren't loading a profile.
-        WebDriverWait(driver, 0.2).until(
-            EC.presence_of_element_located(SELECTED_PEOPLE_TAB_LOCATOR)
-        )
+        if not driver.find_elements(*SELECTED_PEOPLE_TAB_LOCATOR):
+            log("[grey50]Not on People tab, so not loading a profile.[/grey50]")
+            return False
 
         # 2. Now, attempt to find the loaded profile's main content container.
         WebDriverWait(driver, timeout_sec).until(
@@ -336,7 +336,7 @@ def handle_they_saw_you_premium_popup(driver, timeout=1):
 
 
 
-def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_close=True):
+def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_close=True,messaging_probability=4):
     """
     Checks for the "It's a Match!" screen. If found:
     1. Handles the "Opening Moves" info box (if present).
@@ -362,7 +362,7 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
 
         # 2. (Optional) Try to click "Got it" for the "Opening Moves" info box if it's present.
         chance = random.uniform(0,10)
-        if chance > 6:
+        if chance <= messaging_probability:
             try:
                 WebDriverWait(driver, 2).until(
                     EC.presence_of_element_located(OPENING_MOVES_INFO_BOX_TEXT_LOCATOR)
@@ -467,6 +467,7 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                     log(f"[red]Failed to close 'It's a Match!' screen via 'Close' button during fallback: {e_close}[/red]")
                     log("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
                     time.sleep(1.5)
+                    driver.back()
                     action_taken_on_match_screen = True # Assume back action did something
 
             elif message_sent_successfully:
@@ -488,11 +489,14 @@ def handle_its_a_match_and_opening_moves_popup(driver, timeout=1,fallback_to_clo
                 log("[green]Clicked main 'Close' button to dismiss 'It's a Match!' screen (fallback).[/green]")
                 action_taken_on_match_screen = True
                 time.sleep(random.uniform(1.2, 2.2))
+                return True
             except Exception as e_close:
                 log(f"[red]Failed to close 'It's a Match!' screen via 'Close' button during fallback: {e_close}[/red]")
                 log("[orange_red1]Attempting system back as final fallback for 'It's a Match!' screen.[/orange_red1]")
                 time.sleep(1.5)
+                driver.back()
                 action_taken_on_match_screen = True # Assume back action did something
+                return True
             log("[green]Nah Im Skipping This One.[/green]")
     except TimeoutException:
         # The "It's a Match!" screen itself was not found.
@@ -823,7 +827,7 @@ def horizontal_swipe(driver, swipe_right=True):
     swipe_dir = "RIGHT" if swipe_right else "LEFT"
     log(f"[grey50]Horizontal swipe {swipe_dir} performed (duration: ~{duration_ms}ms).[/grey50]")
     time.sleep(random.uniform(0.1, 0.3)) # Reduced pause after swipe from 0.2-0.6 to 0.1-0.3ndle 
-def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5,logger_func: logging.Logger = rprint):
+def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5,logger_func: logging.Logger = rprint,messaging_probability=4):
     """
     Perform realistic swipes on Bumble with profile checking behavior.
     
@@ -927,7 +931,8 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5,logger
                 actions.w3c_actions.pointer_action.pointer_down()
                 actions.w3c_actions.pointer_action.pause(0.2)
                 actions.w3c_actions.pointer_action.release()
-                actions.perform()
+                # actions.perform()
+                driver.back()
 
                 log(f"[grey50]Time taken for critical popup check: {time.time() - start_time:.3f} seconds[/grey50]")
                 if not wait_for_profile_to_load(driver, load_timeout_sec=2.0):
