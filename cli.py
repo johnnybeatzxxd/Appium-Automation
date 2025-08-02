@@ -167,7 +167,7 @@ def create_device_logger(device_name: str):
 
     return device_specific_log
 
-def run_automation_for_device(device: Dict, automation_type: str, appium_port: int, system_port: int, duration: int, probability: int):
+def run_automation_for_device(device: Dict, automation_type: str, appium_port: int, system_port: int, duration: int, probability: int,messaging_probability=4):
     """
     This function contains all logic to automate a SINGLE phone.
     It's designed to be run in its own process.
@@ -210,7 +210,7 @@ def run_automation_for_device(device: Dict, automation_type: str, appium_port: i
         if automation_type == "swiping":
             # Pass the log function to your helper functions
             if open_page(driver, "People", logger_func=log): 
-                realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration, logger_func=log)
+                realistic_swipe(driver, right_swipe_probability=probability, duration_minutes=duration, logger_func=log,messaging_probability=messaging_probability)
         elif automation_type == "handle_matches":
             if open_page(driver, "Chats", logger_func=log): 
                 process_new_matches(driver, 10, 5, logger_func=log)
@@ -375,13 +375,35 @@ def setup_appium_driver(connection_info: dict, server_url: str, system_port: int
     options.auto_grant_permissions = True
     # CRUCIAL for parallel execution: each device needs a unique systemPort
     options.system_port = system_port
+    options.uiautomator2_server_install_timeout = 120000 
+
+    # Give all other ADB commands 2 minutes as well. This is a good safety measure.
+    options.adb_exec_timeout = 120000
 
     try:
         rprint(f"[{device_name}] Connecting to Appium at {server_url}...")
         driver = webdriver.Remote(server_url, options=options)
         time.sleep(5) # Wait for app to stabilize
         rprint(f"[{device_name}] Driver initialized successfully.")
-        return driver
+
+        target_package = "com.bumble.app"
+        max_retries = 3
+        for attempt in range(max_retries):
+            if driver.current_package == target_package:
+                rprint(f"[{device_name}] [green]Bumble app is in the foreground. Driver is ready.[/green]")
+                # Now is a good time to handle any initial popups
+                handle_update_popup(driver)
+                return driver # Success!
+
+            # If not, log it and attempt to activate the app
+            rprint(f"[{device_name}] [yellow]App not in foreground (current: {driver.current_package}). Activating... (Attempt {attempt + 1}/{max_retries})[/yellow]")
+            driver.activate_app(target_package)
+            time.sleep(5)
+
+        # If the loop finishes without success, we have a problem.
+        rprint(f"[{device_name}] [red]FATAL: Failed to activate the Bumble app after {max_retries} attempts.[/red]")
+        driver.quit() # Clean up the failed session
+        return None
     except Exception as e:
         rprint(f"[{device_name}] [red]Failed to initialize Appium driver: {str(e)}[/red]")
         return None
@@ -457,7 +479,7 @@ def get_all_available_devices() -> List[Dict]:
     # Combine both lists
     return remote_devices + local_devices
 
-def start_automation_all():
+def start_automation_all(duration=None,probability=None,automation_type=None,messaging_probability=4):
     """Manages the parallel execution of automation across selected devices."""
     # 1. Get all available devices
     devices = get_all_available_devices()
@@ -494,16 +516,16 @@ def start_automation_all():
         return
 
     # 4. Get automation parameters
-    automation_type = get_automation_type()
-    duration = 5
-    probability = 5
+    if not automation_type:
+        automation_type = get_automation_type()
 
     if automation_type == "swiping":
-        duration_str = Prompt.ask("Enter swipe duration in minutes", default="5")
-        duration = int(duration_str) if duration_str.isdigit() else 5
-        
-        prob_str = Prompt.ask("Enter right swipe probability (1-10)", default="5")
-        probability = int(prob_str) if prob_str.isdigit() and 1 <= int(prob_str) <= 10 else 5
+        if not duration:
+            duration_str = Prompt.ask("Enter swipe duration in minutes", default="5")
+            duration = int(duration_str) if duration_str.isdigit() else 5
+        if not probability:
+            prob_str = Prompt.ask("Enter right swipe probability (1-10)", default="5")
+            probability = int(prob_str) if prob_str.isdigit() and 1 <= int(prob_str) <= 10 else 5
 
     # 5. Prepare for multiprocessing
     manage_adb_server("kill") # Kill any old server
@@ -522,7 +544,7 @@ def start_automation_all():
 
             process = multiprocessing.Process(
                 target=run_automation_for_device,
-                args=(device, automation_type, appium_port, system_port, duration, probability)
+                args=(device, automation_type, appium_port, system_port, duration, probability,messaging_probability)
             )
             processes.append(process)
             process.start()
@@ -714,25 +736,28 @@ def show_menu():
         console.print("\n[bold]Available Options:[/bold]")
         console.print("1. Start Automation for Multiple Devices")
         console.print("2. Start Automation for Specific Device")
-        console.print("3. List Available Devices")
-        console.print("4. Disable Device")
-        console.print("5. Open Phones for Manual Use")  
-        console.print("6. Exit")                      
+        console.print("3. Warmup Accounts")
+        console.print("4. List Available Devices")
+        console.print("5. Disable Device")
+        console.print("6. Open Phones for Manual Use")  
+        console.print("7. Exit")                      
         
-        choice = Prompt.ask("\nSelect an option", choices=["1", "2", "3", "4", "5", "6"])
+        choice = Prompt.ask("\nSelect an option", choices=["1", "2", "3", "4", "5", "6","7"])
         
         if choice == "1":
             start_automation_all()
         elif choice == "2":
             start_automation_specific()
         elif choice == "3":
-            list_available_phones()
+            start_automation_all(duration=4,probability=4,automation_type="swiping",messaging_probability=3)
         elif choice == "4":
-            disable_phone()
+            list_available_phones()
         elif choice == "5":
+            disable_phone()
+        elif choice == "6":
             # Call the new function
             open_phones_manually()
-        elif choice == "6":
+        elif choice == "7":
             # The clean exit logic
             if Confirm.ask("Are you sure you want to exit?"):
                 console.print("[yellow]Goodbye![/yellow]")
