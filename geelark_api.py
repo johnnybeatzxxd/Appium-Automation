@@ -43,6 +43,47 @@ def generate_api_headers(app_id: str, api_key: str) -> dict:
     }
     return headers
 
+def request_with_retry(
+    method,
+    url,
+    headers=None,
+    payload=None,
+    retries=3,
+    backoff=3) -> requests.Response | None:
+    """
+    Make an HTTP request with automatic retries on connection errors.
+
+    Args:
+        method (str): HTTP method ("GET", "POST", etc.)
+        url (str): The API endpoint.
+        headers (dict): HTTP headers.
+        payload (dict or str): Request payload.
+        retries (int): Number of retries on failure.
+        backoff (int): Delay (seconds) between retries.
+
+    Returns:
+        requests.Response: Response object on success.
+        None: If all retries failed.
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            if method.upper() == "POST":
+                response = requests.post(url, headers=headers, data=payload, timeout=10)
+            elif method.upper() == "GET":
+                response = requests.get(url, headers=headers, timeout=10)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+            response.raise_for_status()
+            return response
+        except (requests.exceptions.RequestException) as e:
+            print(f"[Attempt {attempt}/{retries}] Request failed: {e}")
+            if attempt < retries:
+                print(f"Retrying in {backoff} seconds...")
+                time.sleep(backoff)
+            else:
+                print("All retries failed.")
+    return None
+
 def get_all_cloud_phones(
     page: int = None,
     page_size: int = 100,
@@ -74,125 +115,155 @@ def get_all_cloud_phones(
     if tags is not None: 
         payload["tags"] = tags
 
-    try:
-        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status() 
-        
-        response_data = response.json()
-        return response_data["data"]["items"]
-        
-    except requests.exceptions.HTTPError as errh:
-        print(f"Http Error: {errh}")
-        print(f"Response code: {response.status_code}")
+    response = request_with_retry(
+        method="POST",
+        url=api_url,
+        headers=headers,
+        payload=json.dumps(payload),
+        retries=3,
+        backoff=3,  # wait 5s between retries
+    )
 
-def start_phone(ids:list[str]):
+    if response:
+        try:
+            response_data = response.json()
+            return response_data["data"]["items"]
+        except Exception as e:
+            print(f"Failed to parse response JSON: {e}")
+            return []
+    else:
+        print("Could not retrieve cloud phones after retries.")
+        return []
+
+def start_phone(ids: list[str]) -> dict | None:
     """
     Start the specified cloud phones and open their URLs in the browser.
-    
+
     Args:
         ids (list[str]): List of cloud phone IDs to start
+
+    Returns:
+        dict | None: API response dictionary on success, None on failure.
     """
     api_url = "https://openapi.geelark.com/open/v1/phone/start"
     headers = generate_api_headers(app_id, api_key)
-    payload = {"ids":ids}
+    payload = {"ids": ids}
 
-    try:
-        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status() 
-        
-        response_data = response.json()
-        if response_data.get("code") == 0:
-            # Open each phone's URL in the browser
-            success_details = response_data.get("data", {}).get("successDetails", [])
-            for phone in success_details:
-                url = phone.get("url")
-                if url:
-                    print(f"Opening phone {phone.get('id')} in browser...")
-                    webbrowser.open(url)
-                    time.sleep(1)  # Small delay between opening multiple URLs
-        return response_data
-        
-    except requests.exceptions.HTTPError as errh:
-        print(f"Http Error: {errh}")
-        print(f"Response code: {response.status_code}")
+    response = request_with_retry(
+        method="POST",
+        url=api_url,
+        headers=headers,
+        payload=json.dumps(payload),
+        retries=3,    # Retry up to 3 times
+        backoff=5     # Wait 5 seconds between retries
+    )
+
+    if response:
+        try:
+            response_data = response.json()
+            if response_data.get("code") == 0:
+                # Open each phone's URL in the browser
+                success_details = response_data.get("data", {}).get("successDetails", [])
+                for phone in success_details:
+                    url = phone.get("url")
+                    if url:
+                        print(f"Opening phone {phone.get('id')} in browser...")
+                        webbrowser.open(url)
+                        time.sleep(1)  # Small delay between opening multiple URLs
+            else:
+                print(f"API Error: {response_data.get('msg')}")
+            return response_data
+        except Exception as e:
+            print(f"Failed to parse response JSON: {e}")
+            return None
+    else:
+        print("Failed to start phones after retries.")
         return None
 
-def stop_phone(ids:list[str]):
+def stop_phone(ids: list[str]) -> dict | None:
+    """
+    Stop the specified cloud phones.
+    Args:
+        ids (list[str]): List of cloud phone IDs to stop
+    Returns:
+        dict | None: API response dictionary on success, None on failure.
+    """
     api_url = "https://openapi.geelark.com/open/v1/phone/stop"
     headers = generate_api_headers(app_id, api_key)
-    payload = {"ids":ids}
+    payload = {"ids": ids}
 
-    try:
-        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status() 
-        
-        response_data = response.json()
-        return response_data
-        
-    except requests.exceptions.HTTPError as errh:
-        print(f"Http Error: {errh}")
-        print(f"Response code: {response.status_code}")
+    response = request_with_retry(
+        method="POST",
+        url=api_url,
+        headers=headers,
+        payload=json.dumps(payload),
+        retries=3,
+        backoff=5,
+    )
 
-def get_adb_information(ids: list[str]) -> dict:
+    if response:
+        try:
+            response_data = response.json()
+            return response_data
+        except Exception as e:
+            print(f"Failed to parse response JSON: {e}")
+            return None
+    else:
+        print("Failed to stop phones after retries.")
+        return None
+
+def get_adb_information(ids: list[str]) -> list[dict]:
     """
     Get ADB connection information for specified cloud phones.
-    
+
     Args:
         ids (list[str]): List of cloud phone IDs to get ADB information for
-        
+
     Returns:
-        dict: Response containing ADB connection details for each phone
-        
-    Response format:
-    {
-        "items": [
-            {
-                "code": int,      # 0 for success, other codes indicate errors
-                "id": str,        # Cloud phone ID
-                "ip": str,        # Connection IP
-                "port": str,      # Connection port
-                "pwd": str        # Connection password
-            },
-            ...
-        ]
-    }
+        list[dict]: List of ADB connection details for each phone.
     """
     api_url = "https://openapi.geelark.com/open/v1/adb/getData"
     headers = generate_api_headers(app_id, api_key)
     payload = {"ids": ids}
 
-    try:
-        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
-        
-        response_data = response.json()
-        if response_data.get("code") == 0:
-            return response_data.get("data", {}).get("items", [])
-        else:
-            print(f"API Error: {response_data.get('msg')}")
+    response = request_with_retry(
+        method="POST",
+        url=api_url,
+        headers=headers,
+        payload=json.dumps(payload),
+        retries=3,
+        backoff=5,
+    )
+
+    if response:
+        try:
+            response_data = response.json()
+            if response_data.get("code") == 0:
+                return response_data.get("data", {}).get("items", [])
+            else:
+                print(f"API Error: {response_data.get('msg')}")
+                return []
+        except Exception as e:
+            print(f"Failed to parse response JSON: {e}")
             return []
-            
-    except requests.exceptions.HTTPError as errh:
-        print(f"Http Error: {errh}")
-        print(f"Response code: {response.status_code}")
-        return []
-    except Exception as e:
-        print(f"Error getting ADB information: {str(e)}")
+    else:
+        print("Failed to get ADB information after retries.")
         return []
 
 def get_available_phones(adb_enabled=True) -> list[dict]:
     """
     Get a list of available phones based on their remark field.
     Phones are considered available if their remark doesn't contain 'inactive'.
-    
+
     Returns:
-        list[dict]: List of available phones with their details
+        list[dict]: List of available phones with their details.
     """
     # Get all phones
     phones = get_all_cloud_phones()
     if not phones:
+        print("No phones retrieved.")
         return []
-    
+
     # Filter and format available phones
     available_phones = []
     for phone in phones:
@@ -207,43 +278,46 @@ def get_available_phones(adb_enabled=True) -> list[dict]:
                 "model": equipment_info.get("deviceModel", "Unknown")
             }
             available_phones.append(phone_info)
-    
+
     # Get ADB info for available phones
     phone_ids = [phone["id"] for phone in available_phones]
     adb_info = get_adb_information(phone_ids)
-    if adb_enabled:    
+
+    if adb_enabled:
         # Filter out phones where ADB is not enabled (code 49001)
-        return [phone for phone in available_phones 
-                if not any(adb["id"] == phone["id"] and adb["code"] == 49001 for adb in adb_info)]
+        return [
+            phone for phone in available_phones
+            if not any(adb["id"] == phone["id"] and adb["code"] == 49001 for adb in adb_info)
+        ]
     return available_phones
 
 def get_phone_status(ids: list[str]) -> dict:
     """
     Query the status of cloud phones by their IDs.
-    
+
     Args:
         ids (list[str]): List of cloud phone IDs to query status for (max 100 elements)
-        
+
     Returns:
-        dict: Response containing status details for each phone
-        
+        dict: Response containing status details for each phone, or empty dict on failure.
+
     Response format:
     {
-        "totalAmount": int,      # Total number of requested IDs
-        "successAmount": int,    # Number of successful responses
-        "failAmount": int,       # Number of failed responses
-        "successDetails": [      # List of successful phone statuses
+        "totalAmount": int,
+        "successAmount": int,
+        "failAmount": int,
+        "successDetails": [
             {
-                "id": str,           # Phone ID
-                "serialName": str,   # Phone name
-                "status": int        # Status code (0=Started, 1=Starting, 2=Shut down, 3=Expired)
+                "id": str,
+                "serialName": str,
+                "status": int  # 0=Started, 1=Starting, 2=Shut down, 3=Expired
             }
         ],
-        "failDetails": [         # List of failed queries
+        "failDetails": [
             {
-                "code": int,     # Error code
-                "id": str,       # Phone ID
-                "msg": str       # Error message
+                "code": int,
+                "id": str,
+                "msg": str
             }
         ]
     }
@@ -252,23 +326,28 @@ def get_phone_status(ids: list[str]) -> dict:
     headers = generate_api_headers(app_id, api_key)
     payload = {"ids": ids}
 
-    try:
-        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
-        
-        response_data = response.json()
-        if response_data.get("code") == 0:
-            return response_data.get("data", {})
-        else:
-            print(f"API Error: {response_data.get('msg')}")
+    response = request_with_retry(
+        method="POST",
+        url=api_url,
+        headers=headers,
+        payload=json.dumps(payload),
+        retries=3,
+        backoff=5,
+    )
+
+    if response:
+        try:
+            response_data = response.json()
+            if response_data.get("code") == 0:
+                return response_data.get("data", {})
+            else:
+                print(f"API Error: {response_data.get('msg')}")
+                return {}
+        except Exception as e:
+            print(f"Failed to parse response JSON: {e}")
             return {}
-            
-    except requests.exceptions.HTTPError as errh:
-        print(f"Http Error: {errh}")
-        print(f"Response code: {response.status_code}")
-        return {}
-    except Exception as e:
-        print(f"Error getting phone status: {str(e)}")
+    else:
+        print("Failed to get phone status after retries.")
         return {}
 
 if __name__ == '__main__':
