@@ -190,7 +190,6 @@ def get_available_phones(adb_enabled=True) -> list[dict]:
     """
     # Get all phones
     phones = get_all_cloud_phones()
-    
     if not phones:
         return []
     

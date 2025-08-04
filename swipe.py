@@ -827,6 +827,27 @@ def horizontal_swipe(driver, swipe_right=True):
     swipe_dir = "RIGHT" if swipe_right else "LEFT"
     log(f"[grey50]Horizontal swipe {swipe_dir} performed (duration: ~{duration_ms}ms).[/grey50]")
     time.sleep(random.uniform(0.1, 0.3)) # Reduced pause after swipe from 0.2-0.6 to 0.1-0.3ndle 
+
+def ensure_bumble_app_running(driver):
+    target_package = "com.bumble.app"
+
+    if driver.current_package != target_package:
+        log("[red]The app just closed![/red]")
+        max_retries = 3
+        for attempt in range(max_retries):
+            log(f"[yellow]App not in foreground (current: {driver.current_package}). Activating... (Attempt {attempt + 1}/{max_retries})[/yellow]")
+            driver.activate_app(target_package)
+            time.sleep(5)
+            if driver.current_package == target_package:
+                log("[green]App successfully reactivated.[/green]")
+                return True
+        else:
+            # This runs only if the loop didn't break
+            log(f"[red]FATAL: Failed to activate the Bumble app after {max_retries} attempts.[/red]")
+            driver.quit()  # Clean up the failed session
+            return None
+    return True
+    # App is in foreground, continue with rest of function...
 def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5,logger_func: logging.Logger = rprint,messaging_probability=4):
     """
     Perform realistic swipes on Bumble with profile checking behavior.
@@ -843,10 +864,7 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5,logger
     while time.time() < end_time:
         # Random delay between profiles (2-3 seconds)
         loading_start_time = time.time()
-
-        current_app = driver.current_package
-        if current_app != "com.bumble.app":
-            log("[bold red]The app just closed![/bold red]")
+        if not ensure_bumble_app_running(driver):
             return
 
         if not wait_for_profile_to_load(driver, load_timeout_sec=1.0):
@@ -961,11 +979,21 @@ def realistic_swipe(driver, right_swipe_probability=5, duration_minutes=5,logger
                 else:continue
             else:
                 log("[red]Unhandled Page Showed up![/red]")
+                log("[yellow]Backing out![/yellow]")
+                driver.back()
+                if not wait_for_profile_to_load(driver, load_timeout_sec=2.0):
+                    driver.back()
+                else:continue
+                if not wait_for_profile_to_load(driver, load_timeout_sec=2.0):
+                    driver.back()
+                else:continue 
+
                 log("[red]Restarting the app...[/red]")
                 driver.terminate_app("com.bumble.app")
                 time.sleep(2)
                 driver.activate_app("com.bumble.app")
                 time.sleep(3)
+
                 if not wait_for_profile_to_load(driver,load_timeout_sec=1) and not is_popup_present(driver,load_timeout_sec=1) and not is_profile_loading(driver,load_timeout_sec=1):
                     log("[red]The Account required Verification or Banned![/red]")
                     log("[red]Terminating Swipe process![/red]")
