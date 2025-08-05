@@ -231,7 +231,7 @@ def run_automation_for_device(device: Dict, automation_type: str, appium_port: i
         log("Starting cleanup...")
         if driver:
             try:
-                driver.quit()
+                # driver.quit()
                 log("Appium driver quit successfully.")
             except Exception as e:
                 log(f"[red]Error quitting driver: {e}[/red]")
